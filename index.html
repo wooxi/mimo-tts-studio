@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMo TTS Studio</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: oklch(0.985 0.003 264);
+  --surface: oklch(1 0 0);
+  --surface-secondary: oklch(0.965 0.005 264);
+  --sidebar: oklch(0.96 0.006 264);
+  --ink: oklch(0.15 0.014 264);
+  --ink-muted: oklch(0.5 0.02 264);
+  --ink-dim: oklch(0.65 0.015 264);
+  --primary: oklch(0.53 0.22 274);
+  --primary-hover: oklch(0.48 0.24 274);
+  --primary-active: oklch(0.43 0.26 274);
+  --primary-subtle: oklch(0.9 0.07 274);
+  --border: oklch(0.9 0.006 264);
+  --border-focus: oklch(0.53 0.22 274);
+  --error: oklch(0.53 0.2 22);
+  --error-subtle: oklch(0.92 0.06 22);
+  --success: oklch(0.53 0.18 146);
+  --success-subtle: oklch(0.9 0.06 146);
+  --warning: oklch(0.63 0.16 78);
+  --warning-subtle: oklch(0.92 0.06 78);
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 3px oklch(0 0 0 / 0.06), 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.08);
+  --transition: 180ms ease;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+  --sidebar-w: 320px;
+}
+[data-theme="dark"] {
+  --bg: oklch(0.13 0.012 264);
+  --surface: oklch(0.18 0.014 264);
+  --surface-secondary: oklch(0.155 0.012 264);
+  --sidebar: oklch(0.15 0.01 264);
+  --ink: oklch(0.92 0.008 264);
+  --ink-muted: oklch(0.6 0.015 264);
+  --ink-dim: oklch(0.45 0.015 264);
+  --primary: oklch(0.68 0.22 274);
+  --primary-hover: oklch(0.73 0.2 274);
+  --primary-active: oklch(0.78 0.18 274);
+  --primary-subtle: oklch(0.25 0.08 274);
+  --border: oklch(0.25 0.01 264);
+  --error: oklch(0.68 0.2 22);
+  --error-subtle: oklch(0.22 0.06 22);
+  --success: oklch(0.68 0.18 146);
+  --success-subtle: oklch(0.2 0.06 146);
+  --warning: oklch(0.78 0.16 78);
+  --warning-subtle: oklch(0.22 0.06 78);
+  --shadow: 0 1px 3px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.15);
+  --shadow-lg: 0 4px 16px oklch(0 0 0 / 0.3);
+}
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--bg);
+  display: flex;
+  transition: background var(--transition), color var(--transition);
+}
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  height: 100vh;
+  transition: background var(--transition), border-color var(--transition);
+}
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+  height: 100vh;
+  gap: 1.25rem;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.header h1 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.header-controls { display: flex; align-items: center; gap: 0.75rem; }
+.theme-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1;
+  transition: color var(--transition), border-color var(--transition);
+}
+.theme-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  display: block;
+  margin-bottom: 0.35rem;
+}
+select, input, textarea {
+  font-family: var(--font);
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  width: 100%;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+  outline: none;
+}
+select:focus, input:focus, textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--primary-subtle);
+}
+textarea { resize: vertical; min-height: 80px; font-family: var(--font); }
+textarea.text-lg { min-height: 140px; }
+.input-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.input-row { display: flex; gap: 0.75rem; }
+.input-row > * { flex: 1; }
+.file-upload {
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+}
+.file-upload:hover { border-color: var(--primary); background: var(--primary-subtle); }
+.file-upload.has-file { border-color: var(--success); border-style: solid; }
+.file-upload input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+.file-upload .file-name { color: var(--ink); font-weight: 500; margin-top: 0.25rem; }
+.btn {
+  font-family: var(--font);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary {
+  background: var(--primary);
+  color: oklch(1 0 0);
+}
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-full { width: 100%; }
+.spinner {
+  width: 1em; height: 1em;
+  border: 2px solid oklch(1 0 0 / 0.3);
+  border-top-color: oklch(1 0 0);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.player-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--surface-secondary);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: background var(--transition), border-color var(--transition);
+}
+.player-section[hidden] { display: none; }
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.player-btn {
+  width: 2.25rem; height: 2.25rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: oklch(1 0 0);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), transform var(--transition);
+}
+.player-btn:hover { background: var(--primary-hover); }
+.player-btn:active { transform: scale(0.92); }
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+.player-time {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+  min-width: 5rem;
+  font-family: var(--font-mono);
+}
+.player-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+.player-info a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.player-info a:hover { text-decoration: underline; }
+.waveform {
+  height: 48px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+}
+.waveform canvas { display: block; width: 100%; height: 100%; }
+.status-msg {
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.status-msg.error {
+  background: var(--error-subtle);
+  color: var(--error);
+  border: 1px solid oklch(from var(--error) l c h / 0.2);
+}
+.status-msg.success {
+  background: var(--success-subtle);
+  color: var(--success);
+}
+.status-msg.info {
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+.radio-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.radio-group label {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-size: 0.8125rem;
+  flex: 1;
+  text-align: center;
+  padding: 0.45rem 0.5rem;
+  cursor: pointer;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  transition: background var(--transition), color var(--transition);
+  color: var(--ink-muted);
+}
+.radio-group label:last-child { border-right: none; }
+.radio-group label:has(input:checked) {
+  background: var(--primary);
+  color: oklch(1 0 0);
+  font-weight: 500;
+}
+.radio-group input { display: none; }
+.model-desc {
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  padding: 0.3rem 0.5rem;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+}
+.voice-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.toggle-row label { margin: 0; text-transform: none; letter-spacing: normal; font-weight: 400; font-size: 0.8125rem; }
+.toggle {
+  position: relative;
+  width: 36px; height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.toggle.active { background: var(--primary); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: oklch(1 0 0);
+  transition: transform var(--transition);
+}
+.toggle.active::after { transform: translateX(16px); }
+.toggle input { display: none; }
+.stream-notice {
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  padding: 0.25rem 0;
+}
+.collapsible { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-muted);
+  cursor: pointer; user-select: none;
+  background: var(--surface-secondary); border: none; width: 100%;
+  transition: background var(--transition);
+}
+.collapsible-header:hover { background: var(--primary-subtle); }
+.collapsible-header::after {
+  content: '▸'; font-size: 0.65rem; transition: transform var(--transition);
+}
+.collapsible.open .collapsible-header::after { transform: rotate(90deg); }
+.collapsible-body { display: none; padding: 0.6rem; }
+.collapsible.open .collapsible-body { display: block; }
+.tag-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tag-pill {
+  font-family: var(--font); font-size: 0.7rem;
+  padding: 0.18rem 0.5rem;
+  border: 1px solid var(--border); border-radius: 100px;
+  cursor: pointer; user-select: none; white-space: nowrap;
+  background: var(--surface); color: var(--ink-muted);
+  transition: all var(--transition);
+}
+.tag-pill:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-subtle); }
+.tag-pill.active { background: var(--primary-subtle); color: var(--primary); border-color: var(--primary); }
+.tag-section-label {
+  font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-dim); margin-bottom: 0.25rem;
+}
+.director-fields {
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.director-fields textarea { min-height: 48px; font-size: 0.8rem; }
+.model-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.progress-indicator {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--ink-dim);
+  padding: 2rem;
+}
+.empty-state svg { opacity: 0.3; }
+.empty-state p { font-size: 0.9rem; }
+@media (max-width: 768px) {
+  body { flex-direction: column; }
+  .sidebar {
+    width: 100%; min-width: unset;
+    height: auto; max-height: 50vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .main { height: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="header">
+    <h1>MiMo TTS</h1>
+    <div class="header-controls">
+      <button class="theme-btn" id="themeToggle" aria-label="切换主题">🌓</button>
+    </div>
+  </div>
+
+  <div class="input-group">
+    <label for="apiKey">API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+  </div>
+
+  <div class="input-group">
+    <label>模型</label>
+    <div class="radio-group" id="modelGroup">
+      <label><input type="radio" name="model" value="mimo-v2.5-tts" checked> TTS</label>
+      <label><input type="radio" name="model" value="mimo-v2.5-tts-voicedesign"> VoiceDesign</label>
+      <label><input type="radio" name="model" value="mimo-v2.5-tts-voiceclone"> VoiceClone</label>
+    </div>
+    <div class="model-desc" id="modelDesc">预置精品音色进行语音合成</div>
+  </div>
+
+  <div class="input-group voice-config" id="voiceConfig">
+  </div>
+
+  <div class="model-options" id="modelOptions"></div>
+
+  <div class="input-group">
+    <label>音频格式</label>
+    <div class="radio-group" id="formatGroup">
+      <label><input type="radio" name="format" value="wav" checked> WAV</label>
+      <label><input type="radio" name="format" value="pcm16"> PCM16</label>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <label for="streamToggle">流式输出</label>
+    <div class="toggle" id="streamToggle" role="switch" tabindex="0">
+      <input type="checkbox">
+    </div>
+  </div>
+  <div class="stream-notice" id="streamNotice">流式仅支持 PCM16 格式</div>
+</aside>
+
+<main class="main">
+  <div class="input-group">
+    <label for="styleInput">风格描述 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-dim)">(可选，作为 user message)</span></label>
+    <textarea id="styleInput" placeholder="Bright, bouncy, slightly sing-song tone — like you are bursting with good news you can barely hold in. Fast pace, rising pitch at the end." rows="2"></textarea>
+  </div>
+
+  <div class="input-group collapsible" id="directorPanel">
+    <button class="collapsible-header" type="button">导演模式</button>
+    <div class="collapsible-body">
+      <div class="director-fields">
+        <textarea id="directorRole" placeholder="角色：百年门阀岑家的现任大当家。自小便被塑造成一尊完美无瑕的家族图腾..." rows="2"></textarea>
+        <textarea id="directorScene" placeholder="场景：在祠堂的阴影里，看着那个不顾一切冲破保安防线来找她的男人..." rows="2"></textarea>
+        <textarea id="directorGuide" placeholder="指导：冰冷、慵懒却极具威压的低音御姐。语速极慢，每个字都像是在舌尖滚过才吐出来..." rows="2"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-group collapsible" id="tagPanel">
+    <button class="collapsible-header" type="button">风格 & 音频标签</button>
+    <div class="collapsible-body">
+      <div class="tag-section-label">风格标签（点击后拼到文本开头）</div>
+      <div class="tag-bar" id="styleTagBar"></div>
+      <div class="tag-section-label" style="margin-top:0.5rem">音频标签（点击后插入光标位置）</div>
+      <div class="tag-bar" id="audioTagBar"></div>
+    </div>
+  </div>
+
+  <div class="input-group">
+    <label for="textInput">合成文本 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-dim)">(assistant message)</span></label>
+    <textarea id="textInput" class="text-lg" placeholder="Hey boss — guess what, guess what? I just got the results back and I actually passed! Not just passed, I got a distinction!"></textarea>
+  </div>
+
+  <button class="btn btn-primary btn-full" id="synthesizeBtn">
+    <span id="btnText">合成语音</span>
+  </button>
+
+  <div id="statusArea"></div>
+  <div id="progressArea" hidden><div class="progress-indicator" id="progressText">接收中...</div></div>
+
+  <div class="player-section" id="playerSection" hidden>
+    <div class="waveform"><canvas id="waveformCanvas"></canvas></div>
+    <div class="player-controls">
+      <button class="player-btn" id="playBtn" aria-label="播放">▶</button>
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <span class="player-time" id="timeDisplay">0:00 / 0:00</span>
+    </div>
+    <div class="player-info">
+      <span id="durationInfo">—</span>
+      <a href="#" id="downloadLink" download="tts-output.wav">下载</a>
+    </div>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+    <p>输入文本和 API Key 后点击合成</p>
+  </div>
+</main>
+
+<script>
+const MODELS = {
+  'mimo-v2.5-tts': {
+    label: 'TTS',
+    desc: '预置精品音色进行语音合成。支持唱歌模式，不支持音色设计与音色复刻。',
+    presetVoices: true,
+    supportsStream: true,
+  },
+  'mimo-v2.5-tts-voicedesign': {
+    label: 'VoiceDesign',
+    desc: '通过文本描述定制音色，无需预置或音频样本。不支持唱歌模式与音色复刻。',
+    presetVoices: false,
+    supportsStream: false,
+  },
+  'mimo-v2.5-tts-voiceclone': {
+    label: 'VoiceClone',
+    desc: '基于音频样本复刻任意音色。不支持唱歌模式与音色设计。',
+    presetVoices: false,
+    supportsStream: false,
+  },
+};
+
+const PRESET_VOICES = [
+  { id: 'mimo_default', label: 'MiMo-默认', lang: '双语' },
+  { id: '冰糖', label: '冰糖', lang: '中文' },
+  { id: '茉莉', label: '茉莉', lang: '中文' },
+  { id: '苏打', label: '苏打', lang: '中文' },
+  { id: '白桦', label: '白桦', lang: '中文' },
+  { id: 'Mia', label: 'Mia', lang: '英文' },
+  { id: 'Chloe', label: 'Chloe', lang: '英文' },
+  { id: 'Milo', label: 'Milo', lang: '英文' },
+  { id: 'Dean', label: 'Dean', lang: '英文' },
+];
+
+const STYLE_TAGS = [
+  '开心', '悲伤', '愤怒', '恐惧', '惊讶', '兴奋', '委屈', '平静', '冷漠',
+  '怅然', '欣慰', '无奈', '愧疚', '释然', '嫉妒', '厌倦', '忐忑', '动情',
+  '温柔', '高冷', '活泼', '严肃', '慵懒', '俏皮', '深沉', '干练', '凌厉',
+  '磁性', '醇厚', '清亮', '空灵', '稚嫩', '苍老', '甜美', '沙哑', '醇雅',
+  '夹子音', '御姐音', '正太音', '大叔音', '台湾腔',
+  '东北话', '四川话', '河南话', '粤语',
+  '孙悟空', '林黛玉',
+  '唱歌',
+];
+
+const AUDIO_TAGS = [
+  '吸气', '深呼吸', '叹气', '长叹一口气', '喘息', '屏息',
+  '紧张', '害怕', '激动', '疲惫', '委屈', '撒娇', '心虚', '震惊', '不耐烦',
+  '颤抖', '声音颤抖', '变调', '破音', '鼻音', '气声', '沙哑',
+  '笑', '轻笑', '大笑', '冷笑', '抽泣', '呜咽', '哽咽', '嚎啕大哭',
+  '沉默片刻', '小声', '提高音量喊话', '语速加快', '语速放慢', '碎碎念',
+];
+
+const $ = id => document.getElementById(id);
+
+let apiKey = localStorage.getItem('mimo_tts_api_key') || '';
+let audioCtx = null;
+let audioChunks = [];
+let currentAudioBlob = null;
+let isPlaying = false;
+let audioElement = null;
+let audioUrl = null;
+let isStreaming = false;
+
+$('apiKey').value = apiKey;
+$('apiKey').addEventListener('input', () => {
+  localStorage.setItem('mimo_tts_api_key', $('apiKey').value);
+});
+
+document.querySelectorAll('input[name="model"]').forEach(el => {
+  el.addEventListener('change', updateModelConfig);
+});
+
+document.querySelectorAll('input[name="format"]').forEach(el => {
+  el.addEventListener('change', updateFormatConfig);
+});
+
+$('streamToggle').addEventListener('click', () => {
+  $('streamToggle').classList.toggle('active');
+  const cb = $('streamToggle').querySelector('input');
+  cb.checked = !cb.checked;
+  updateStreamConfig();
+});
+
+$('themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('mimo_tts_theme', next);
+});
+
+const savedTheme = localStorage.getItem('mimo_tts_theme');
+if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+
+let activeStyleTags = new Set();
+
+function initCollapsibles() {
+  document.querySelectorAll('.collapsible-header').forEach(header => {
+    header.addEventListener('click', () => {
+      header.parentElement.classList.toggle('open');
+    });
+  });
+}
+
+function initTagBars() {
+  STYLE_TAGS.forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.textContent = tag;
+    pill.title = `风格: ${tag}`;
+    pill.addEventListener('click', () => {
+      pill.classList.toggle('active');
+      if (pill.classList.contains('active')) {
+        activeStyleTags.add(tag);
+      } else {
+        activeStyleTags.delete(tag);
+      }
+    });
+    $('styleTagBar').appendChild(pill);
+  });
+
+  AUDIO_TAGS.forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.textContent = tag;
+    pill.title = `音频: ${tag}`;
+    pill.addEventListener('click', () => {
+      const ta = $('textInput');
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const before = ta.value.slice(0, start);
+      const after = ta.value.slice(end);
+      const insert = `[${tag}]`;
+      ta.value = before + insert + after;
+      const pos = start + insert.length;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    });
+    $('audioTagBar').appendChild(pill);
+  });
+}
+
+initCollapsibles();
+initTagBars();
+
+function updateModelConfig() {
+  const model = document.querySelector('input[name="model"]:checked').value;
+  const info = MODELS[model];
+  $('modelDesc').textContent = info.desc;
+
+  const container = $('voiceConfig');
+  container.innerHTML = '';
+
+  if (info.presetVoices) {
+    const label = document.createElement('label');
+    label.textContent = '预置信音色';
+    const select = document.createElement('select');
+    select.id = 'voiceSelect';
+    PRESET_VOICES.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = `${v.label} (${v.lang})`;
+      select.appendChild(opt);
+    });
+    container.appendChild(label);
+    container.appendChild(select);
+  } else if (model === 'mimo-v2.5-tts-voicedesign') {
+    const label = document.createElement('label');
+    label.htmlFor = 'voiceDesignInput';
+    label.textContent = '音色描述';
+    const textarea = document.createElement('textarea');
+    textarea.id = 'voiceDesignInput';
+    textarea.placeholder = 'Young female, warm and gentle voice, like a close friend whispering a bedtime story. Slightly slow tempo with soft breathing.';
+    textarea.rows = 3;
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:0.7rem;color:var(--ink-dim)';
+    hint.textContent = '描述越具体，生成音色越贴合预期。1-4 句即可。';
+    container.appendChild(label);
+    container.appendChild(textarea);
+    container.appendChild(hint);
+  } else if (model === 'mimo-v2.5-tts-voiceclone') {
+    const label = document.createElement('label');
+    label.textContent = '音频样本';
+    const upload = document.createElement('div');
+    upload.className = 'file-upload';
+    upload.id = 'voiceUpload';
+    upload.innerHTML = '<span id="uploadText">点击或拖拽上传 MP3/WAV 样本</span><div class="file-name" id="fileName"></div>';
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mp3,.wav,audio/mpeg,audio/wav';
+    input.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) {
+        upload.classList.add('has-file');
+        $('fileName').textContent = f.name;
+        $('uploadText').textContent = '已选择';
+      } else {
+        upload.classList.remove('has-file');
+        $('fileName').textContent = '';
+        $('uploadText').textContent = '点击或拖拽上传 MP3/WAV 样本';
+        upload.querySelector('input').value = '';
+      }
+    });
+    upload.appendChild(input);
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:0.7rem;color:var(--ink-dim)';
+    hint.textContent = 'Base64 编码后不超过 10MB。支持 mp3/wav 格式。';
+    container.appendChild(label);
+    container.appendChild(upload);
+    container.appendChild(hint);
+  }
+
+  if (!info.supportsStream) {
+    $('streamToggle').classList.remove('active');
+    $('streamToggle').querySelector('input').checked = false;
+    updateStreamConfig();
+  }
+  updateStreamNotice();
+  updateModelOptions();
+}
+
+function updateModelOptions() {
+  const model = document.querySelector('input[name="model"]:checked').value;
+  const container = $('modelOptions');
+  container.innerHTML = '';
+
+  if (model === 'mimo-v2.5-tts') {
+    const div = document.createElement('div');
+    div.className = 'toggle-row';
+    const label = document.createElement('label');
+    label.textContent = '唱歌模式';
+    const toggle = document.createElement('div');
+    toggle.className = 'toggle';
+    toggle.id = 'singingToggle';
+    toggle.setAttribute('role', 'switch');
+    toggle.tabIndex = 0;
+    toggle.innerHTML = '<input type="checkbox">';
+    toggle.addEventListener('click', () => { toggle.classList.toggle('active'); });
+    div.appendChild(label);
+    div.appendChild(toggle);
+    container.appendChild(div);
+    const hint = document.createElement('div');
+    hint.className = 'stream-notice';
+    hint.textContent = '开启后在文本开头自动拼接 (唱歌) 标签';
+    container.appendChild(hint);
+  }
+
+  if (model === 'mimo-v2.5-tts-voicedesign') {
+    const div = document.createElement('div');
+    div.className = 'toggle-row';
+    const label = document.createElement('label');
+    label.textContent = '优化文本预览';
+    const toggle = document.createElement('div');
+    toggle.className = 'toggle active';
+    toggle.id = 'optimizeToggle';
+    toggle.setAttribute('role', 'switch');
+    toggle.tabIndex = 0;
+    toggle.innerHTML = '<input type="checkbox" checked>';
+    toggle.addEventListener('click', () => { toggle.classList.toggle('active'); });
+    div.appendChild(label);
+    div.appendChild(toggle);
+    container.appendChild(div);
+    const hint = document.createElement('div');
+    hint.className = 'stream-notice';
+    hint.textContent = '智能润色目标播报文本，开启后可省略 assistant 消息';
+    container.appendChild(hint);
+  }
+}
+
+function updateFormatConfig() {
+  updateStreamNotice();
+}
+
+function updateStreamConfig() {
+  const streaming = $('streamToggle').classList.contains('active');
+  const format = document.querySelector('input[name="format"]:checked').value;
+  if (streaming && format !== 'pcm16') {
+    document.querySelector('input[name="format"][value="pcm16"]').checked = true;
+  }
+  updateStreamNotice();
+}
+
+function updateStreamNotice() {
+  const model = document.querySelector('input[name="model"]:checked').value;
+  const info = MODELS[model];
+  const streaming = $('streamToggle').classList.contains('active');
+  const format = document.querySelector('input[name="format"]:checked').value;
+
+  if (streaming && !info.supportsStream) {
+    $('streamNotice').textContent = '该模型暂不支持流式输出';
+    $('streamNotice').style.color = 'var(--warning)';
+  } else if (streaming && format === 'pcm16') {
+    $('streamNotice').textContent = '流式模式 — 实时接收 PCM16 音频块';
+    $('streamNotice').style.color = 'var(--ink-dim)';
+  } else if (streaming) {
+    $('streamNotice').textContent = '流式仅支持 PCM16 格式，已自动切换';
+    $('streamNotice').style.color = 'var(--ink-dim)';
+  } else {
+    $('streamNotice').textContent = '非流式模式 — 完成后返回完整音频';
+    $('streamNotice').style.color = 'var(--ink-dim)';
+  }
+}
+
+async function synthesize() {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { showStatus('请输入 API Key', 'error'); return; }
+
+  const text = $('textInput').value.trim();
+  const model = document.querySelector('input[name="model"]:checked').value;
+
+  if (model === 'mimo-v2.5-tts-voicedesign') {
+    const optimizeOn = $('optimizeToggle')?.classList?.contains('active');
+    if (!optimizeOn && !text) {
+      showStatus('关闭优化文本预览后需要填写合成文本', 'error'); return;
+    }
+  } else if (!text) {
+    showStatus('请输入合成文本', 'error'); return;
+  }
+  const format = document.querySelector('input[name="format"]:checked').value;
+  const streaming = $('streamToggle').classList.contains('active');
+  const style = $('styleInput').value.trim();
+
+  if (streaming && !MODELS[model].supportsStream) {
+    showStatus('该模型暂不支持流式输出，请关闭流式开关', 'error');
+    return;
+  }
+
+  const messages = [];
+  let userContent = '';
+
+  const directorRole = $('directorRole')?.value?.trim();
+  const directorScene = $('directorScene')?.value?.trim();
+  const directorGuide = $('directorGuide')?.value?.trim();
+  if (directorRole || directorScene || directorGuide) {
+    userContent = [
+      directorRole ? `角色：${directorRole}` : '',
+      directorScene ? `场景：${directorScene}` : '',
+      directorGuide ? `指导：${directorGuide}` : '',
+    ].filter(Boolean).join('\n');
+  } else if (style) {
+    userContent = style;
+  }
+
+  if (model === 'mimo-v2.5-tts-voicedesign') {
+    const desc = $('voiceDesignInput')?.value?.trim();
+    if (!desc) { showStatus('VoiceDesign 模型需要填写音色描述', 'error'); return; }
+    messages.push({ role: 'user', content: desc });
+  } else if (userContent) {
+    messages.push({ role: 'user', content: userContent });
+  }
+
+  let assistantText = text;
+  const singingOn = $('singingToggle')?.classList?.contains('active');
+
+  if (activeStyleTags.size > 0) {
+    const tagStr = Array.from(activeStyleTags).join(' ');
+    assistantText = `(${tagStr})${assistantText}`;
+  }
+
+  if (singingOn) {
+    const hasSingTag = /^\(.*唱歌.*\)/.test(assistantText);
+    if (!hasSingTag) {
+      assistantText = `(唱歌)${assistantText}`;
+    }
+  }
+
+  const optimizeOn = $('optimizeToggle')?.classList?.contains('active');
+  if (model === 'mimo-v2.5-tts-voicedesign') {
+    if (!optimizeOn && !assistantText) {
+      showStatus('关闭优化文本预览后需要填写合成文本', 'error'); return;
+    }
+    if (assistantText) {
+      messages.push({ role: 'assistant', content: assistantText });
+    }
+  } else {
+    messages.push({ role: 'assistant', content: assistantText });
+  }
+
+  const audio = { format };
+  if (model === 'mimo-v2.5-tts') {
+    audio.voice = $('voiceSelect')?.value || 'mimo_default';
+  } else if (model === 'mimo-v2.5-tts-voiceclone') {
+    const fileInput = $('voiceUpload')?.querySelector('input');
+    if (!fileInput?.files?.[0]) {
+      showStatus('VoiceClone 模型需要上传音频样本', 'error');
+      return;
+    }
+    try {
+      const file = fileInput.files[0];
+      const mime = file.type || 'audio/mpeg';
+      const buf = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      audio.voice = `data:${mime};base64,${base64}`;
+    } catch (e) {
+      showStatus('音频文件编码失败: ' + e.message, 'error');
+      return;
+    }
+  }
+  if (model === 'mimo-v2.5-tts-voicedesign') {
+    audio.optimize_text_preview = optimizeOn;
+  }
+
+  const body = { model, messages, audio };
+  if (streaming) body.stream = true;
+
+  setLoading(true);
+  clearPlayer();
+  hideStatus();
+  $('emptyState').hidden = true;
+
+  try {
+    if (streaming) {
+      isStreaming = true;
+      await streamSynthesize(apiKey, body);
+    } else {
+      await nonStreamSynthesize(apiKey, body);
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    showStatus('合成失败: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    setLoading(false);
+    isStreaming = false;
+  }
+}
+
+async function nonStreamSynthesize(apiKey, body) {
+  const res = await fetch('https://api.xiaomimimo.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${res.statusText}${errText ? ': ' + errText : ''}`);
+  }
+
+  const data = await res.json();
+  const audioData = data?.choices?.[0]?.message?.audio?.data;
+  if (!audioData) {
+    const usage = data?.usage ? ` (usage: ${JSON.stringify(data.usage)})` : '';
+    throw new Error('响应中未包含音频数据' + usage);
+  }
+
+  const binary = atob(audioData);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  const blob = new Blob([bytes], { type: 'audio/wav' });
+  showPlayer(blob);
+
+  const duration = blob.size > 44 ? Math.round((blob.size - 44) / 24000 / 2) : 0;
+  $('durationInfo').textContent = `WAV · ${formatDuration(duration)} · ${(blob.size / 1024).toFixed(1)} KB`;
+  showStatus('合成完成', 'success');
+}
+
+async function streamSynthesize(apiKey, body) {
+  $('progressArea').hidden = false;
+  $('progressText').textContent = '连接中...';
+
+  const res = await fetch('https://api.xiaomimimo.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${res.statusText}${errText ? ': ' + errText : ''}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let pcmChunks = [];
+  let totalBytes = 0;
+  let usage = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === 'data: [DONE]') continue;
+      if (!trimmed.startsWith('data: ')) continue;
+
+      try {
+        const parsed = JSON.parse(trimmed.slice(6));
+        const delta = parsed?.choices?.[0]?.delta;
+        const audio = delta?.audio;
+
+        if (audio?.data) {
+          const binary = atob(audio.data);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          pcmChunks.push(bytes);
+          totalBytes += bytes.length;
+          $('progressText').textContent = `接收中... ${(totalBytes / 1024).toFixed(1)} KB`;
+        }
+
+        if (parsed?.usage) usage = parsed.usage;
+      } catch (e) {
+        console.warn('parse error:', e.message, trimmed);
+      }
+    }
+  }
+
+  $('progressArea').hidden = true;
+
+  if (pcmChunks.length === 0) {
+    throw new Error('流式响应中未接收到音频数据');
+  }
+
+  const total = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of pcmChunks) {
+    total.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const int16 = new Int16Array(total.buffer);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) {
+    float32[i] = int16[i] / 32768;
+  }
+
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const audioBuffer = audioCtx.createBuffer(1, float32.length, 24000);
+  audioBuffer.getChannelData(0).set(float32);
+
+  const wavBlob = pcmToWav(float32, 24000);
+  showPlayer(wavBlob);
+
+  const duration = float32.length / 24000;
+  $('durationInfo').textContent = `PCM16流式 · ${formatDuration(duration)} · ${(wavBlob.size / 1024).toFixed(1)} KB`;
+  showStatus('合成完成', 'success');
+}
+
+function pcmToWav(samples, sampleRate) {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+  const blockAlign = numChannels * bitsPerSample / 8;
+  const dataSize = samples.length * blockAlign;
+  const bufferSize = 44 + dataSize;
+  const buf = new ArrayBuffer(bufferSize);
+  const view = new DataView(buf);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset2 = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset2, s < 0 ? s * 32768 : s * 32767, true);
+    offset2 += 2;
+  }
+
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+function showPlayer(blob) {
+  currentAudioBlob = blob;
+  if (audioUrl) URL.revokeObjectURL(audioUrl);
+
+  $('playerSection').hidden = false;
+  audioUrl = URL.createObjectURL(blob);
+
+  if (audioElement) { audioElement.pause(); audioElement = null; }
+
+  audioElement = new Audio(audioUrl);
+  audioElement.addEventListener('loadedmetadata', () => {
+    updateTimeDisplay();
+    drawWaveform(blob);
+  });
+  audioElement.addEventListener('timeupdate', updateTimeDisplay);
+  audioElement.addEventListener('ended', () => {
+    isPlaying = false;
+    $('playBtn').textContent = '▶';
+  });
+
+  $('downloadLink').href = audioUrl;
+
+  $('playBtn').textContent = '▶';
+  isPlaying = false;
+}
+
+function togglePlay() {
+  if (!audioElement) return;
+
+  if (isPlaying) {
+    audioElement.pause();
+    $('playBtn').textContent = '▶';
+  } else {
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+    audioElement.play();
+    $('playBtn').textContent = '⏸';
+  }
+  isPlaying = !isPlaying;
+}
+
+$('playBtn').addEventListener('click', togglePlay);
+
+$('progressBar').addEventListener('click', e => {
+  if (!audioElement?.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  audioElement.currentTime = pct * audioElement.duration;
+});
+
+function updateTimeDisplay() {
+  if (!audioElement?.duration) return;
+  const current = audioElement.currentTime || 0;
+  const duration = audioElement.duration || 0;
+  $('progressFill').style.width = `${(current / duration) * 100}%`;
+  $('timeDisplay').textContent = `${formatDuration(current)} / ${formatDuration(duration)}`;
+}
+
+function formatDuration(sec) {
+  const s = Math.floor(sec);
+  const m = Math.floor(s / 60);
+  const secs = s % 60;
+  return `${m}:${secs.toString().padStart(2, '0')}`;
+}
+
+async function drawWaveform(blob) {
+  const canvas = $('waveformCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width;
+  const h = rect.height;
+
+  try {
+    const buf = await blob.arrayBuffer();
+    const audioBuf = await (audioCtx || new (window.AudioContext || window.webkitAudioContext)()).decodeAudioData(buf.slice(0));
+    const data = audioBuf.getChannelData(0);
+    const step = Math.ceil(data.length / w);
+    const samples = [];
+    for (let i = 0; i < w; i++) {
+      let sum = 0;
+      for (let j = 0; j < step && i * step + j < data.length; j++) {
+        sum += Math.abs(data[i * step + j]);
+      }
+      samples.push(sum / step);
+    }
+    const max = Math.max(...samples, 0.001);
+
+    ctx.clearRect(0, 0, w, h);
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const barColor = isDark ? 'oklch(0.68 0.22 274 / 0.6)' : 'oklch(0.53 0.22 274 / 0.6)';
+
+    samples.forEach((s, i) => {
+      const barH = (s / max) * (h - 4);
+      const y = (h - barH) / 2;
+      ctx.fillStyle = barColor;
+      ctx.fillRect(i, y, 1, barH);
+    });
+  } catch (e) {
+    console.warn('waveform draw failed:', e);
+  }
+}
+
+function clearPlayer() {
+  $('playerSection').hidden = true;
+  if (audioElement) { audioElement.pause(); audioElement = null; }
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+  currentAudioBlob = null;
+  isPlaying = false;
+}
+
+function setLoading(loading) {
+  const btn = $('synthesizeBtn');
+  btn.disabled = loading;
+  if (loading) {
+    $('btnText').innerHTML = '<span class="spinner"></span> 合成中...';
+  } else {
+    $('btnText').textContent = '合成语音';
+  }
+}
+
+function showStatus(msg, type) {
+  $('statusArea').innerHTML = `<div class="status-msg ${type}">${msg}</div>`;
+}
+
+function hideStatus() {
+  $('statusArea').innerHTML = '';
+}
+
+$('synthesizeBtn').addEventListener('click', synthesize);
+
+$('textInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    synthesize();
+  }
+});
+
+updateModelConfig();
+updateStreamNotice();
+</script>
+</body>
+</html>
