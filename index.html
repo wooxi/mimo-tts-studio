@@ -380,8 +380,8 @@ textarea.text-lg { min-height: 140px; }
   content: '▸'; font-size: 0.65rem; transition: transform var(--transition);
 }
 .collapsible.open .collapsible-header::after { transform: rotate(90deg); }
-.collapsible-body { display: none; padding: 0.6rem; }
-.collapsible.open .collapsible-body { display: block; }
+.collapsible-body { display: none; padding: 0.6rem; max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+.collapsible.open .collapsible-body { display: block; max-height: 240px; overflow-y: auto; }
 .tag-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .tag-pill {
   font-family: var(--font); font-size: 0.7rem;
