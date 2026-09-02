@@ -441,13 +441,20 @@ textarea.text-lg { min-height: 140px; }
   <div class="header">
     <h1>MiMo TTS</h1>
     <div class="header-controls">
+      <span id="syncStatus" title="服务端配置同步状态" style="font-size:0.68rem;color:var(--ink-dim)"></span>
       <button class="theme-btn" id="themeToggle" aria-label="切换主题">🌓</button>
     </div>
   </div>
 
   <div class="input-group">
     <label for="apiKey">API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+    <input type="password" id="apiKey" placeholder="sk-...（留空可用服务端密钥）" autocomplete="off">
+    <button class="btn" id="saveKeyBtn" style="padding:0.4rem 0.75rem;font-size:0.78rem;background:var(--surface-secondary);color:var(--ink-muted);border:1px solid var(--border)">保存密钥到服务端</button>
+  </div>
+
+  <div class="input-group">
+    <label for="configToken">服务端访问令牌（可选）</label>
+    <input type="password" id="configToken" placeholder="Worker 设置 CONFIG_TOKEN 后填写" autocomplete="off">
   </div>
 
   <div class="input-group">
@@ -602,7 +609,6 @@ const AUDIO_TAGS = [
 
 const $ = id => document.getElementById(id);
 
-let apiKey = localStorage.getItem('mimo_tts_api_key') || '';
 let audioCtx = null;
 let audioChunks = [];
 let currentAudioBlob = null;
@@ -611,17 +617,162 @@ let audioElement = null;
 let audioUrl = null;
 let isStreaming = false;
 
-$('apiKey').value = apiKey;
+// ---------- 服务端配置同步 ----------
+const SERVER = { token: localStorage.getItem('mimo_tts_config_token') || '' };
+
+function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (SERVER.token) headers['X-Config-Token'] = SERVER.token;
+  return fetch(path, { ...opts, headers });
+}
+
+function setSyncStatus(text, color) {
+  const el = $('syncStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color || 'var(--ink-dim)';
+}
+
+function collectConfig() {
+  return {
+    model: document.querySelector('input[name="model"]:checked')?.value,
+    format: document.querySelector('input[name="format"]:checked')?.value,
+    stream: $('streamToggle')?.classList.contains('active') || false,
+    voice: $('voiceSelect')?.value || '',
+    voiceDesign: $('voiceDesignInput')?.value || '',
+    style: $('styleInput')?.value || '',
+    directorRole: $('directorRole')?.value || '',
+    directorScene: $('directorScene')?.value || '',
+    directorGuide: $('directorGuide')?.value || '',
+    text: $('textInput')?.value || '',
+    styleTags: Array.from(activeStyleTags),
+    singing: $('singingToggle')?.classList.contains('active') || false,
+    optimize: $('optimizeToggle')?.classList.contains('active') !== false,
+  };
+}
+
+function applyConfig(cfg) {
+  if (!cfg || typeof cfg !== 'object') return;
+  if (cfg.model && MODELS[cfg.model]) {
+    const radio = document.querySelector(`input[name="model"][value="${cfg.model}"]`);
+    if (radio) radio.checked = true;
+  }
+  updateModelConfig();
+  if (cfg.voice && $('voiceSelect')) $('voiceSelect').value = cfg.voice;
+  if (typeof cfg.voiceDesign === 'string' && $('voiceDesignInput')) $('voiceDesignInput').value = cfg.voiceDesign;
+  if (typeof cfg.style === 'string') $('styleInput').value = cfg.style;
+  if (typeof cfg.directorRole === 'string') $('directorRole').value = cfg.directorRole;
+  if (typeof cfg.directorScene === 'string') $('directorScene').value = cfg.directorScene;
+  if (typeof cfg.directorGuide === 'string') $('directorGuide').value = cfg.directorGuide;
+  if (typeof cfg.text === 'string') $('textInput').value = cfg.text;
+  if (Array.isArray(cfg.styleTags)) {
+    activeStyleTags = new Set(cfg.styleTags.filter(t => STYLE_TAGS.includes(t)));
+    document.querySelectorAll('#styleTagBar .tag-pill').forEach(pill => {
+      pill.classList.toggle('active', activeStyleTags.has(pill.textContent));
+    });
+  }
+  if (cfg.format === 'wav' || cfg.format === 'pcm16') {
+    document.querySelector(`input[name="format"][value="${cfg.format}"]`).checked = true;
+  }
+  if (cfg.stream && MODELS[cfg.model || document.querySelector('input[name="model"]:checked')?.value]?.supportsStream) {
+    $('streamToggle').classList.add('active');
+    $('streamToggle').querySelector('input').checked = true;
+  }
+  if (cfg.model === 'mimo-v2.5-tts') {
+    const sing = $('singingToggle');
+    if (sing) sing.classList.toggle('active', !!cfg.singing);
+  }
+  if (cfg.model === 'mimo-v2.5-tts-voicedesign') {
+    const opt = $('optimizeToggle');
+    if (opt) opt.classList.toggle('active', cfg.optimize !== false);
+  }
+  updateStreamNotice();
+}
+
+let serverSaveTimer = null;
+function scheduleServerSave() {
+  const cfg = collectConfig();
+  try { localStorage.setItem('mimo_tts_config', JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+  setSyncStatus('同步中…');
+  clearTimeout(serverSaveTimer);
+  serverSaveTimer = setTimeout(async () => {
+    try {
+      const res = await api('/api/config', { method: 'PUT', body: JSON.stringify(cfg) });
+      setSyncStatus(res.ok ? '已同步 ✓' : '同步失败', res.ok ? 'var(--success)' : 'var(--error)');
+    } catch {
+      setSyncStatus('本地模式', 'var(--ink-dim)');
+    }
+  }, 800);
+}
+
+async function loadServerConfig() {
+  // 先用本地快照快速恢复
+  try {
+    const local = JSON.parse(localStorage.getItem('mimo_tts_config') || 'null');
+    if (local) applyConfig(local);
+  } catch (e) { /* ignore */ }
+  try {
+    const res = await api('/api/config');
+    if (!res.ok) { setSyncStatus('本地模式'); return; }
+    const cfg = await res.json();
+    if (cfg && Object.keys(cfg).length) applyConfig(cfg);
+    setSyncStatus('已同步 ✓', 'var(--success)');
+  } catch {
+    setSyncStatus('本地模式');
+  }
+}
+
+$('apiKey').value = localStorage.getItem('mimo_tts_api_key') || '';
 $('apiKey').addEventListener('input', () => {
   localStorage.setItem('mimo_tts_api_key', $('apiKey').value);
 });
 
+$('configToken').value = SERVER.token;
+$('configToken').addEventListener('input', () => {
+  SERVER.token = $('configToken').value.trim();
+  localStorage.setItem('mimo_tts_config_token', SERVER.token);
+});
+
+$('saveKeyBtn').addEventListener('click', async () => {
+  const key = $('apiKey').value.trim();
+  if (!key) { showStatus('请先输入 API Key', 'error'); return; }
+  try {
+    const res = await api('/api/api-key', { method: 'PUT', body: JSON.stringify({ apiKey: key }) });
+    if (res.ok) {
+      showStatus('密钥已保存到服务端：之后可清空输入框，走 /api/tts 代理合成', 'success');
+    } else if (res.status === 401) {
+      showStatus('保存失败：服务端设置了访问令牌，请先填写令牌', 'error');
+    } else {
+      showStatus('保存失败: ' + res.status, 'error');
+    }
+  } catch (e) {
+    showStatus('保存失败: ' + e.message, 'error');
+  }
+});
+
+// 检查服务端是否已配置密钥
+(async () => {
+  try {
+    const res = await api('/api/api-key');
+    if (res.ok) {
+      const { configured } = await res.json();
+      if (configured) $('apiKey').placeholder = 'sk-...（留空可用服务端密钥）';
+    }
+  } catch { /* 本地模式下忽略 */ }
+})();
+
 document.querySelectorAll('input[name="model"]').forEach(el => {
-  el.addEventListener('change', updateModelConfig);
+  el.addEventListener('change', () => {
+    updateModelConfig();
+    scheduleServerSave();
+  });
 });
 
 document.querySelectorAll('input[name="format"]').forEach(el => {
-  el.addEventListener('change', updateFormatConfig);
+  el.addEventListener('change', () => {
+    updateFormatConfig();
+    scheduleServerSave();
+  });
 });
 
 $('streamToggle').addEventListener('click', () => {
@@ -629,6 +780,7 @@ $('streamToggle').addEventListener('click', () => {
   const cb = $('streamToggle').querySelector('input');
   cb.checked = !cb.checked;
   updateStreamConfig();
+  scheduleServerSave();
 });
 
 $('themeToggle').addEventListener('click', () => {
@@ -664,6 +816,7 @@ function initTagBars() {
       } else {
         activeStyleTags.delete(tag);
       }
+      scheduleServerSave();
     });
     $('styleTagBar').appendChild(pill);
   });
@@ -686,11 +839,8 @@ function initTagBars() {
       ta.focus();
     });
     $('audioTagBar').appendChild(pill);
-  });
+    });
 }
-
-initCollapsibles();
-initTagBars();
 
 function updateModelConfig() {
   const model = document.querySelector('input[name="model"]:checked').value;
@@ -705,6 +855,7 @@ function updateModelConfig() {
     label.textContent = '预置信音色';
     const select = document.createElement('select');
     select.id = 'voiceSelect';
+    select.addEventListener('change', scheduleServerSave);
     PRESET_VOICES.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.id;
@@ -784,7 +935,10 @@ function updateModelOptions() {
     toggle.setAttribute('role', 'switch');
     toggle.tabIndex = 0;
     toggle.innerHTML = '<input type="checkbox">';
-    toggle.addEventListener('click', () => { toggle.classList.toggle('active'); });
+    toggle.addEventListener('click', () => {
+      toggle.classList.toggle('active');
+      scheduleServerSave();
+    });
     div.appendChild(label);
     div.appendChild(toggle);
     container.appendChild(div);
@@ -805,7 +959,10 @@ function updateModelOptions() {
     toggle.setAttribute('role', 'switch');
     toggle.tabIndex = 0;
     toggle.innerHTML = '<input type="checkbox" checked>';
-    toggle.addEventListener('click', () => { toggle.classList.toggle('active'); });
+    toggle.addEventListener('click', () => {
+      toggle.classList.toggle('active');
+      scheduleServerSave();
+    });
     div.appendChild(label);
     div.appendChild(toggle);
     container.appendChild(div);
@@ -851,8 +1008,13 @@ function updateStreamNotice() {
 }
 
 async function synthesize() {
-  const apiKey = $('apiKey').value.trim();
-  if (!apiKey) { showStatus('请输入 API Key', 'error'); return; }
+  const inlineKey = $('apiKey').value.trim();
+  // 输入框留空 → 走 Worker 代理（使用服务端保存的密钥）
+  const useProxy = !inlineKey;
+  const endpoint = useProxy ? '/api/tts' : 'https://api.xiaomimimo.com/v1/chat/completions';
+  const headers = { 'Content-Type': 'application/json' };
+  if (!useProxy) headers['api-key'] = inlineKey;
+  if (useProxy && SERVER.token) headers['X-Config-Token'] = SERVER.token;
 
   const text = $('textInput').value.trim();
   const model = document.querySelector('input[name="model"]:checked').value;
@@ -938,7 +1100,14 @@ async function synthesize() {
       const file = fileInput.files[0];
       const mime = file.type || 'audio/mpeg';
       const buf = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      // 分块转换，避免大文件 spread 超过参数上限报错
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const CHUNK = 0x8000;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      const base64 = btoa(binary);
       audio.voice = `data:${mime};base64,${base64}`;
     } catch (e) {
       showStatus('音频文件编码失败: ' + e.message, 'error');
@@ -960,9 +1129,9 @@ async function synthesize() {
   try {
     if (streaming) {
       isStreaming = true;
-      await streamSynthesize(apiKey, body);
+      await streamSynthesize(endpoint, headers, body);
     } else {
-      await nonStreamSynthesize(apiKey, body);
+      await nonStreamSynthesize(endpoint, headers, body);
     }
   } catch (e) {
     if (e.name === 'AbortError') return;
@@ -974,13 +1143,10 @@ async function synthesize() {
   }
 }
 
-async function nonStreamSynthesize(apiKey, body) {
-  const res = await fetch('https://api.xiaomimimo.com/v1/chat/completions', {
+async function nonStreamSynthesize(endpoint, headers, body) {
+  const res = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -1008,16 +1174,13 @@ async function nonStreamSynthesize(apiKey, body) {
   showStatus('合成完成', 'success');
 }
 
-async function streamSynthesize(apiKey, body) {
+async function streamSynthesize(endpoint, headers, body) {
   $('progressArea').hidden = false;
   $('progressText').textContent = '连接中...';
 
-  const res = await fetch('https://api.xiaomimimo.com/v1/chat/completions', {
+  const res = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'api-key': apiKey,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -1260,7 +1423,12 @@ function setLoading(loading) {
 }
 
 function showStatus(msg, type) {
-  $('statusArea').innerHTML = `<div class="status-msg ${type}">${msg}</div>`;
+  const area = $('statusArea');
+  area.textContent = '';
+  const div = document.createElement('div');
+  div.className = `status-msg ${type}`;
+  div.textContent = msg;
+  area.appendChild(div);
 }
 
 function hideStatus() {
@@ -1276,8 +1444,17 @@ $('textInput').addEventListener('keydown', e => {
   }
 });
 
+// 配置变化时自动持久化（本地 + 服务端）
+initCollapsibles();
+initTagBars();
+['styleInput', 'textInput', 'directorRole', 'directorScene', 'directorGuide'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('input', scheduleServerSave);
+});
+
 updateModelConfig();
 updateStreamNotice();
+loadServerConfig();
 </script>
 </body>
 </html>

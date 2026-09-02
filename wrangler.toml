@@ -1,0 +1,23 @@
+name = "mimo-tts-studio"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+# 静态资源（public/index.html）由 Worker 托管
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 持久化配置的 KV 存储
+# 创建命令: npx wrangler kv namespace create CONFIG_KV
+# 然后把输出的 id 填到下面
+[[kv_namespaces]]
+binding = "CONFIG_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# 上游 TTS API 地址
+UPSTREAM_URL = "https://api.xiaomimimo.com/v1/chat/completions"
+
+# 可选机密（不要写在这里，用 `npx wrangler secret put` 设置）:
+#   MIMO_API_KEY   — 服务端兜底密钥（KV 未保存密钥时使用）
+#   CONFIG_TOKEN   — 配置/代理接口的访问令牌，设置后所有写操作和代理请求需带 X-Config-Token 头

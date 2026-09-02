@@ -1,0 +1,14 @@
+{
+  "name": "mimo-tts-studio",
+  "version": "1.1.0",
+  "private": true,
+  "description": "MiMo TTS Studio — Cloudflare Worker + KV 版本",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "kv:create": "wrangler kv namespace create CONFIG_KV"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
