@@ -12,7 +12,7 @@ binding = "ASSETS"
 # 然后把输出的 id 填到下面
 [[kv_namespaces]]
 binding = "CONFIG_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "d2b657f55d2d4e27972f187cda6a169e"
 
 [vars]
 # 上游 TTS API 地址
