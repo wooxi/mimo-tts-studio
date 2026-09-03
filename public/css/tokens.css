@@ -11,7 +11,7 @@
   --accent: oklch(0.78 0.14 75);
   --accent-strong: oklch(0.84 0.15 75);
   --accent-dim: oklch(0.78 0.14 75 / 0.16);
-  --accent-ink: oklch(0.18 0.03 75);      /* 琥珀底上的深字 */
+  --accent-ink: oklch(0.18 0.03 75); /* 琥珀底上的深字 */
   --ok: oklch(0.75 0.14 150);
   --err: oklch(0.68 0.18 25);
   --err-dim: oklch(0.68 0.18 25 / 0.14);
@@ -21,11 +21,13 @@
   --shadow: 0 2px 12px oklch(0 0 0 / 0.25);
   --transition: 180ms ease;
   --transition-drawer: 220ms ease;
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
-  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --font:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  --font-mono:
+    "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace;
   --topbar-h: 52px;
 }
-[data-theme='light'] {
+[data-theme="light"] {
   --bg: oklch(0.97 0.006 85);
   --surface: oklch(1 0 0);
   --surface-2: oklch(0.945 0.008 85);
