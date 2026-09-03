@@ -1,0 +1,45 @@
+/* ============ 录音棚 Design Tokens（见 DESIGN.md） ============ */
+:root {
+  /* dark 默认 */
+  --bg: oklch(0.145 0.008 260);
+  --surface: oklch(0.19 0.01 260);
+  --surface-2: oklch(0.235 0.012 260);
+  --border: oklch(0.3 0.012 260);
+  --ink: oklch(0.93 0.005 260);
+  --ink-dim: oklch(0.62 0.01 260);
+  --ink-faint: oklch(0.45 0.01 260);
+  --accent: oklch(0.78 0.14 75);
+  --accent-strong: oklch(0.84 0.15 75);
+  --accent-dim: oklch(0.78 0.14 75 / 0.16);
+  --accent-ink: oklch(0.18 0.03 75);      /* 琥珀底上的深字 */
+  --ok: oklch(0.75 0.14 150);
+  --err: oklch(0.68 0.18 25);
+  --err-dim: oklch(0.68 0.18 25 / 0.14);
+  --ok-dim: oklch(0.75 0.14 150 / 0.14);
+  --radius: 10px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 12px oklch(0 0 0 / 0.25);
+  --transition: 180ms ease;
+  --transition-drawer: 220ms ease;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --topbar-h: 52px;
+}
+[data-theme='light'] {
+  --bg: oklch(0.97 0.006 85);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.945 0.008 85);
+  --border: oklch(0.86 0.01 85);
+  --ink: oklch(0.2 0.01 70);
+  --ink-dim: oklch(0.48 0.015 70);
+  --ink-faint: oklch(0.62 0.01 70);
+  --accent: oklch(0.55 0.13 65);
+  --accent-strong: oklch(0.5 0.14 65);
+  --accent-dim: oklch(0.55 0.13 65 / 0.12);
+  --accent-ink: oklch(0.99 0.003 85);
+  --ok: oklch(0.5 0.13 150);
+  --err: oklch(0.55 0.18 25);
+  --err-dim: oklch(0.55 0.18 25 / 0.1);
+  --ok-dim: oklch(0.5 0.13 150 / 0.1);
+  --shadow: 0 2px 12px oklch(0.2 0.02 70 / 0.08);
+}
