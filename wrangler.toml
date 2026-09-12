@@ -7,12 +7,7 @@ compatibility_date = "2025-01-01"
 directory = "./public"
 binding = "ASSETS"
 
-# 配置持久化（UI 状态）
-[[kv_namespaces]]
-binding = "CONFIG_KV"
-id = "d2b657f55d2d4e27972f187cda6a169e"
-
-# 历史记录元数据
+# 配置 + 历史记录元数据（同库：config 表 + history 表；v3.1 起弃用 KV）
 [[d1_databases]]
 binding = "HISTORY_DB"
 database_name = "mimo-tts-db"

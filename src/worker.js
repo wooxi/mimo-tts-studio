@@ -2,7 +2,8 @@
  * MiMo TTS Studio — Cloudflare Worker
  *
  * - 托管 public/ 静态资源（Workers Assets）
- * - KV 持久化 UI 配置：GET/PUT /api/config
+ * - D1 持久化 UI 配置（config 表，单行 upsert）：GET/PUT /api/config
+ *   （v3.1 起弃用 KV：免费档 KV 每日写入仅 1,000 次，D1 为 100,000 行/天）
  * - TTS 代理：POST /api/tts（密钥只存在于 CF Secret MIMO_API_KEY，浏览器不接触）
  * - 历史记录：D1 元数据 + R2 音频（src/history.js）
  *
@@ -48,11 +49,23 @@ export default {
       return json({ error: "bad request" }, cors, 400);
     }
 
-    // ---------- 配置持久化 ----------
+    // ---------- 配置持久化（D1 config 表） ----------
     if (url.pathname === "/api/config") {
       if (request.method === "GET") {
-        const cfg = await env.CONFIG_KV.get(CONFIG_KEY, "json");
-        return json(cfg ?? {}, cors);
+        let cfg = {};
+        try {
+          const row = await env.HISTORY_DB.prepare(
+            "SELECT value FROM config WHERE key = ?",
+          )
+            .bind(CONFIG_KEY)
+            .first();
+          if (row?.value) cfg = JSON.parse(row.value);
+        } catch {
+          cfg = {}; // 表缺失或行损坏时按空配置处理
+        }
+        if (typeof cfg !== "object" || cfg === null || Array.isArray(cfg))
+          cfg = {};
+        return json(cfg, cors);
       }
       if (request.method === "PUT") {
         if (!checkToken(request, env, url))
@@ -71,7 +84,12 @@ export default {
           if (typeof v === "string" && v.length > 100_000)
             body[k] = v.slice(0, 100_000);
         }
-        await env.CONFIG_KV.put(CONFIG_KEY, JSON.stringify(body));
+        await env.HISTORY_DB.prepare(
+          `INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        )
+          .bind(CONFIG_KEY, JSON.stringify(body), Date.now())
+          .run();
         return json({ ok: true }, cors);
       }
     }

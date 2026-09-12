@@ -1,7 +1,9 @@
 # MiMo TTS Studio
 
 小米 MiMo TTS 前端工作台，运行在 Cloudflare Workers 全家桶上：
-**Workers（托管 + 代理）+ KV（配置持久化）+ D1（历史元数据）+ R2（历史音频）**。
+**Workers（托管 + 代理）+ D1（配置 + 历史元数据）+ R2（历史音频）**。
+配置自 v3.1 起存于 D1 `config` 表（单行 upsert），不再使用 KV
+（免费档 KV 每日写入仅 1,000 次，D1 为 100,000 行/天）。
 
 ## 架构
 
@@ -9,7 +11,7 @@
 浏览器 ──► Cloudflare Worker
    ├─ 静态资源（public/，原生 ES Modules，无构建）
    ├─ POST /api/tts        → 代理上游 TTS（流式透传）
-   ├─ GET/PUT /api/config  → KV 持久化全部 UI 配置
+   ├─ GET/PUT /api/config  → D1 持久化全部 UI 配置（config 表）
    ├─ GET/POST/DELETE /api/history → D1 历史元数据
    └─ GET /audio/:id       → R2 音频流式回放
 ```
@@ -24,7 +26,6 @@
 npm install
 
 # 一次性创建资源（已创建过可跳过）
-wrangler kv namespace create CONFIG_KV
 wrangler d1 create mimo-tts-db
 wrangler r2 bucket create mimo-tts-audio
 # 把 id 填入 wrangler.toml，然后建表（本地 + 远程）
@@ -61,4 +62,5 @@ wrangler dev          # 本地（D1/R2/KV 自动本地模拟）
 wrangler d1 execute mimo-tts-db --local --file=src/schema.sql   # 本地建表
 ```
 
-配置字段向后兼容旧版 localStorage（`mimo_tts_config`），KV 无需迁移。
+配置字段向后兼容旧版 localStorage（`mimo_tts_config`）。v3.1 已把原 KV 中的配置
+一次性迁移到 D1 `config` 表，旧 KV 命名空间保留未删但不再使用。

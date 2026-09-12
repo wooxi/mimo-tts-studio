@@ -11,3 +11,10 @@ CREATE TABLE IF NOT EXISTS history (
   audio_key TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_history_created ON history (created_at DESC);
+
+-- UI 配置（v3.1 起替代 KV；单行 upsert，key 固定为 "config:default"）
+CREATE TABLE IF NOT EXISTS config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
