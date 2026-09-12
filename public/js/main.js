@@ -24,7 +24,8 @@ const $ = (id) => document.getElementById(id);
 // ---------- 主题 ----------
 const themeBtn = $("themeToggle");
 const savedTheme = localStorage.getItem("mimo_tts_theme");
-if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+if (savedTheme === "dark" || savedTheme === "light")
+  document.documentElement.setAttribute("data-theme", savedTheme);
 themeBtn.addEventListener("click", () => {
   const next =
     document.documentElement.getAttribute("data-theme") === "light"
@@ -32,14 +33,25 @@ themeBtn.addEventListener("click", () => {
       : "light";
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("mimo_tts_theme", next);
+  window.dispatchEvent(new CustomEvent("themechange"));
 });
 
-// ---------- 模型切换（顶栏分段） ----------
+// ---------- 模型切换（分段滑块） ----------
 const modelTabs = $("modelTabs");
+const segThumb = modelTabs.querySelector(".seg-thumb");
+
+function positionThumb() {
+  const active = modelTabs.querySelector("button.active");
+  if (!active || !segThumb) return;
+  segThumb.style.width = `${active.offsetWidth}px`;
+  segThumb.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+
 for (const [id, info] of Object.entries(MODELS)) {
   const b = document.createElement("button");
   b.type = "button";
   b.textContent = info.label;
+  b.setAttribute("role", "tab");
   b.dataset.model = id;
   b.addEventListener("click", () => {
     if (state.model === id) return;
@@ -56,7 +68,9 @@ for (const [id, info] of Object.entries(MODELS)) {
 function renderModelTabs() {
   modelTabs.querySelectorAll("button").forEach((b) => {
     b.classList.toggle("active", b.dataset.model === state.model);
+    b.setAttribute("aria-selected", b.dataset.model === state.model);
   });
+  positionThumb();
 }
 
 // ---------- 模型专属卡片 ----------
@@ -64,11 +78,7 @@ const modelCard = $("modelCard");
 function renderModelCard() {
   modelCard.textContent = "";
   const info = MODELS[state.model];
-
-  const desc = document.createElement("p");
-  desc.className = "model-desc";
-  desc.textContent = info.desc;
-  modelCard.appendChild(desc);
+  $("modelDesc").textContent = info.desc;
 
   if (info.presetVoices) {
     const label = document.createElement("div");
@@ -138,7 +148,7 @@ function renderModelCard() {
     upload.className = "file-upload";
     upload.innerHTML = `
       <span data-role="txt">点击或拖拽上传 MP3/WAV 样本</span>
-      <input type="file" accept=".mp3,.wav,audio/mpeg,audio/wav">`;
+      <input type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" aria-label="上传音频样本">`;
     const nameEl = document.createElement("p");
     nameEl.className = "note";
     const input = upload.querySelector("input");
@@ -146,7 +156,24 @@ function renderModelCard() {
       const f = input.files[0];
       state.cloneFile = f || null;
       upload.style.borderColor = f ? "var(--ok)" : "";
-      nameEl.textContent = f ? `已选择：${f.name}（Base64 后不超过 10MB）` : "";
+      nameEl.textContent = f
+        ? `已选择：${f.name}（${(f.size / 1024 / 1024).toFixed(1)} MB · Base64 后不超过 10MB）`
+        : "";
+    });
+    ["dragover", "dragleave", "drop"].forEach((ev) => {
+      upload.addEventListener(ev, (e) => {
+        e.preventDefault();
+        upload.classList.toggle("drag", ev === "dragover");
+        if (ev === "drop") {
+          const f = e.dataTransfer?.files?.[0];
+          if (f) {
+            const dt = new DataTransfer();
+            dt.items.add(f);
+            input.files = dt.files;
+            input.dispatchEvent(new Event("change"));
+          }
+        }
+      });
     });
     modelCard.append(label, upload, nameEl);
   }
@@ -162,11 +189,20 @@ function toggleRow(text, id, checked, onChange) {
   t.className = "toggle" + (checked ? " active" : "");
   t.id = id;
   t.setAttribute("role", "switch");
+  t.setAttribute("aria-checked", String(!!checked));
   t.tabIndex = 0;
-  t.addEventListener("click", () => {
+  const flip = () => {
     const on = !t.classList.contains("active");
     t.classList.toggle("active", on);
+    t.setAttribute("aria-checked", String(on));
     onChange(on);
+  };
+  t.addEventListener("click", flip);
+  t.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      flip();
+    }
   });
   row.append(lbl, t);
   return row;
@@ -190,6 +226,7 @@ initTags($("tagsPanel"), state, {
     ta.setSelectionRange(pos, pos);
     ta.focus();
     state.text = ta.value;
+    updateCharCount();
     scheduleSave(syncBadge);
   },
 });
@@ -198,11 +235,13 @@ function syncTagPills() {
   document.querySelectorAll("#tagsPanel .tag-pill").forEach((pill) => {
     pill.classList.toggle("active", state.styleTags.has(pill.textContent));
   });
+  $("tagCount").textContent = state.styleTags.size
+    ? String(state.styleTags.size)
+    : "";
 }
 const removeChip = (tag) => {
   state.styleTags.delete(tag);
   renderChipsFromState();
-  syncTagPills();
   scheduleSave(syncBadge);
 };
 
@@ -212,8 +251,15 @@ function renderChipsFromState() {
 }
 
 // ---------- 输入绑定 ----------
-$("textInput").addEventListener("input", () => {
-  state.text = $("textInput").value;
+const textInput = $("textInput");
+function updateCharCount() {
+  $("charCount").textContent = textInput.value
+    ? `${textInput.value.length} 字`
+    : "";
+}
+textInput.addEventListener("input", () => {
+  state.text = textInput.value;
+  updateCharCount();
   scheduleSave(syncBadge);
 });
 $("styleInput").addEventListener("input", () => {
@@ -227,27 +273,34 @@ $("styleInput").addEventListener("input", () => {
   });
 });
 
-$("textInput").addEventListener("keydown", (e) => {
+textInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();
     doSynthesize();
   }
 });
 
-// 导演模式折叠
-document.querySelector(".fold-head").addEventListener("click", () => {
-  $("directorFold").classList.toggle("open");
+// ---------- 折叠区 ----------
+document.querySelectorAll(".fold-head").forEach((head) => {
+  head.addEventListener("click", () => {
+    const fold = head.closest(".fold");
+    const open = fold.classList.toggle("open");
+    head.setAttribute("aria-expanded", String(open));
+  });
 });
 
 // 移动端输出抽屉把手
-document.querySelector(".output-head").addEventListener("click", () => {
+$("outputHead").addEventListener("click", () => {
   if (window.matchMedia("(max-width: 820px)").matches) {
     $("paneOutput").classList.toggle("open");
   }
 });
 
 // ---------- 合成 ----------
+const synthBtn = $("synthesizeBtn");
+const synthLabel = $("synthLabel");
 let busy = false;
+
 async function doSynthesize() {
   if (busy) return;
   const err = validate();
@@ -257,12 +310,9 @@ async function doSynthesize() {
   }
 
   busy = true;
-  const btn = $("synthesizeBtn");
-  btn.disabled = true;
-  btn.textContent = "";
-  const spinner = document.createElement("span");
-  spinner.className = "spinner";
-  btn.append(spinner, document.createTextNode(" 合成中…"));
+  synthBtn.disabled = true;
+  synthBtn.classList.add("busy");
+  synthLabel.textContent = "合成中";
   setStatus("", "");
 
   const body = buildBody();
@@ -300,12 +350,13 @@ async function doSynthesize() {
     console.error(e);
   } finally {
     busy = false;
-    btn.disabled = false;
-    btn.textContent = "合 成";
+    synthBtn.disabled = false;
+    synthBtn.classList.remove("busy");
+    synthLabel.textContent = "合成";
   }
 }
 
-$("synthesizeBtn").addEventListener("click", doSynthesize);
+synthBtn.addEventListener("click", doSynthesize);
 
 function setStatus(msg, cls) {
   const el = $("statusArea");
@@ -330,7 +381,8 @@ function loadParams(p) {
   }
   if (typeof p.text === "string") {
     state.text = p.text;
-    $("textInput").value = p.text;
+    textInput.value = p.text;
+    updateCharCount();
   }
   if (p.voice && MODELS[p.model]?.presetVoices) {
     const sel = $("voiceSelect");
@@ -339,27 +391,37 @@ function loadParams(p) {
   renderChipsFromState();
   scheduleSave(syncBadge);
   setStatus("已载入历史参数，可重新编辑合成", "info");
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  $("paneOutput").classList.remove("open");
 }
 
 // ---------- 启动 ----------
 renderModelTabs();
 renderModelCard();
 renderChipsFromState();
-$("textInput").value = state.text;
+textInput.value = state.text;
+updateCharCount();
 $("styleInput").value = state.style;
 $("directorRole").value = state.director.role;
 $("directorScene").value = state.director.scene;
 $("directorGuide").value = state.director.guide;
-$("kbdHint").textContent = "⌘/Ctrl + Enter";
+$("kbdHint").textContent = /Mac|iPhone|iPad/.test(navigator.platform)
+  ? "⌘⏎"
+  : "Ctrl⏎";
 initOutput(loadParams);
 initSettings();
+
+if ("ResizeObserver" in window) {
+  new ResizeObserver(positionThumb).observe(modelTabs);
+} else {
+  window.addEventListener("resize", positionThumb);
+}
 
 restoreConfig((status) => {
   syncBadge(status);
   if (status === "ok") {
     // 服务端配置覆盖后刷新受控 DOM
-    $("textInput").value = state.text;
+    textInput.value = state.text;
+    updateCharCount();
     $("styleInput").value = state.style;
     $("directorRole").value = state.director.role;
     $("directorScene").value = state.director.scene;
@@ -378,6 +440,6 @@ restoreConfig((status) => {
     status: 200,
   }));
   if (res.status === 401) {
-    setStatus("需要访问令牌：点击右上角 ⚙ 填入 CONFIG_TOKEN", "err");
+    setStatus("需要访问令牌：点击右上角设置填入 CONFIG_TOKEN", "err");
   }
 })();

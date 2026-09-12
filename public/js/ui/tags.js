@@ -160,7 +160,8 @@ export function initTags(root, state, handlers) {
     if (g.id === "role") {
       const tip = document.createElement("p");
       tip.className = "note";
-      tip.textContent = "角色标签改变说话风格，基础嗓音仍由预置音色决定；想换嗓音请切换音色或用 VoiceDesign";
+      tip.textContent =
+        "角色标签改变说话风格，基础嗓音仍由预置音色决定；想换嗓音请切换音色或用 VoiceDesign";
       div.appendChild(tip);
     }
     body.appendChild(div);

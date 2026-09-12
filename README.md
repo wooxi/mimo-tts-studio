@@ -38,18 +38,21 @@ wrangler secret put CONFIG_TOKEN   # 访问令牌（强烈建议）
 wrangler deploy
 ```
 
-首次打开页面：点右上角 ⚙ → 填入 CONFIG_TOKEN（仅存于本浏览器 localStorage）。
+首次打开页面：点右上角设置（滑杆图标）→ 填入 CONFIG_TOKEN（仅存于本浏览器 localStorage）。
 
 GitHub Actions：仓库 Secrets 配置 `CF_API_TOKEN`（Workers Scripts:Edit 权限）和 `CF_ACCOUNT_ID`，push 即自动部署。
 
 ## 界面
 
-「录音棚」暗色主题（`DESIGN.md` 为视觉权威）：近黑底 + 琥珀点缀 + 等宽读数，
-波形为视觉母题。三段布局：
+「瓷与朱」浅色主题（`DESIGN.md` 为视觉权威）：瓷白冷灰底 + 墨字 + 朱砂点缀，
+波形为视觉主角；另有「墨」深色变体（顶栏切换）。
 
-- **顶栏**：模型分段切换（TTS / VoiceDesign / VoiceClone）· 同步状态 · 主题 · 设置
-- **创作区**：合成文本主焦点 · 风格标签（分组 tab + 搜索 + 选中 chip）· 风格描述 · 导演模式抽屉 · 模型专属卡片 · 大号合成按钮（⌘/Ctrl+Enter）
-- **输出区**：波形播放器 · 历史列表（回放 / 载入参数 / 删除）· 移动端为底部抽屉
+- **顶栏**：品牌 · 配置同步状态 · 主题切换 · 设置
+- **创作区**：模型分段切换（TTS / VoiceDesign / VoiceClone，滑动墨块）· 模型参数卡 ·
+  合成文本主焦点（带字数）· 风格标签（分组 tab + 搜索 + 选中 chip，可折叠）·
+  风格描述 · 导演模式抽屉 · 合成按钮吸底（⌘/Ctrl+Enter）
+- **输出区**：波形播放器（未播放墨灰、已播放朱砂）· 历史列表（回放 / 载入参数 / 删除）·
+  移动端为底部抽屉，合成完成自动展开
 
 ## 开发
 

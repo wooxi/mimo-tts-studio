@@ -1,47 +1,77 @@
-/* ============ 录音棚 Design Tokens（见 DESIGN.md） ============ */
+/* ============ 瓷与朱 Design Tokens — v3 ============ */
+/* 浅色为默认：瓷白 · 墨字 · 朱砂点睛。深色为「墨」变体。 */
+
 :root {
-  /* dark 默认 */
-  --bg: oklch(0.145 0.008 260);
-  --surface: oklch(0.19 0.01 260);
-  --surface-2: oklch(0.235 0.012 260);
-  --border: oklch(0.3 0.012 260);
-  --ink: oklch(0.93 0.005 260);
-  --ink-dim: oklch(0.62 0.01 260);
-  --ink-faint: oklch(0.45 0.01 260);
-  --accent: oklch(0.78 0.14 75);
-  --accent-strong: oklch(0.84 0.15 75);
-  --accent-dim: oklch(0.78 0.14 75 / 0.16);
-  --accent-ink: oklch(0.18 0.03 75); /* 琥珀底上的深字 */
-  --ok: oklch(0.75 0.14 150);
-  --err: oklch(0.68 0.18 25);
-  --err-dim: oklch(0.68 0.18 25 / 0.14);
-  --ok-dim: oklch(0.75 0.14 150 / 0.14);
-  --radius: 10px;
+  color-scheme: light;
+
+  --bg: oklch(0.978 0.004 250);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.958 0.0045 250);
+  --surface-3: oklch(0.932 0.005 250);
+  --border: oklch(0.908 0.007 250);
+  --border-strong: oklch(0.845 0.009 250);
+
+  --ink: oklch(0.24 0.012 250);
+  --ink-dim: oklch(0.44 0.013 250);
+  --ink-faint: oklch(0.60 0.011 250);
+
+  --accent: oklch(0.545 0.185 27);
+  --accent-strong: oklch(0.495 0.19 27);
+  --accent-ink: oklch(0.99 0.003 250);
+  --accent-dim: oklch(0.545 0.185 27 / 0.10);
+  --accent-veil: oklch(0.545 0.185 27 / 0.05);
+
+  --ok: oklch(0.52 0.105 155);
+  --ok-dim: oklch(0.52 0.105 155 / 0.11);
+  --err: oklch(0.52 0.19 27);
+  --err-dim: oklch(0.52 0.19 27 / 0.08);
+
+  --radius: 12px;
   --radius-sm: 8px;
-  --shadow: 0 2px 12px oklch(0 0 0 / 0.25);
-  --transition: 180ms ease;
-  --transition-drawer: 220ms ease;
+  --shadow-soft: 0 1px 2px oklch(0.24 0.012 250 / 0.04);
+  --shadow: 0 1px 2px oklch(0.24 0.012 250 / 0.05),
+    0 10px 32px oklch(0.24 0.012 250 / 0.08);
+
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 130ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-drawer: 280ms cubic-bezier(0.32, 0.72, 0, 1);
+
   --font:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-display:
+    Georgia, "Times New Roman", "Songti SC", "STSong", "SimSun", serif;
   --font-mono:
     "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace;
-  --topbar-h: 52px;
+
+  --topbar-h: 56px;
 }
-[data-theme="light"] {
-  --bg: oklch(0.97 0.006 85);
-  --surface: oklch(1 0 0);
-  --surface-2: oklch(0.945 0.008 85);
-  --border: oklch(0.86 0.01 85);
-  --ink: oklch(0.2 0.01 70);
-  --ink-dim: oklch(0.48 0.015 70);
-  --ink-faint: oklch(0.62 0.01 70);
-  --accent: oklch(0.55 0.13 65);
-  --accent-strong: oklch(0.5 0.14 65);
-  --accent-dim: oklch(0.55 0.13 65 / 0.12);
-  --accent-ink: oklch(0.99 0.003 85);
-  --ok: oklch(0.5 0.13 150);
-  --err: oklch(0.55 0.18 25);
-  --err-dim: oklch(0.55 0.18 25 / 0.1);
-  --ok-dim: oklch(0.5 0.13 150 / 0.1);
-  --shadow: 0 2px 12px oklch(0.2 0.02 70 / 0.08);
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: oklch(0.168 0.008 250);
+  --surface: oklch(0.208 0.01 250);
+  --surface-2: oklch(0.248 0.011 250);
+  --surface-3: oklch(0.29 0.012 250);
+  --border: oklch(0.315 0.011 250);
+  --border-strong: oklch(0.40 0.013 250);
+
+  --ink: oklch(0.93 0.006 250);
+  --ink-dim: oklch(0.67 0.011 250);
+  --ink-faint: oklch(0.49 0.011 250);
+
+  --accent: oklch(0.675 0.165 27);
+  --accent-strong: oklch(0.725 0.16 27);
+  --accent-ink: oklch(0.16 0.02 27);
+  --accent-dim: oklch(0.675 0.165 27 / 0.16);
+  --accent-veil: oklch(0.675 0.165 27 / 0.07);
+
+  --ok: oklch(0.72 0.12 155);
+  --ok-dim: oklch(0.72 0.12 155 / 0.14);
+  --err: oklch(0.68 0.18 27);
+  --err-dim: oklch(0.68 0.18 27 / 0.12);
+
+  --shadow-soft: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.25), 0 10px 32px oklch(0 0 0 / 0.35);
 }

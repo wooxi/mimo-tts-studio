@@ -20,6 +20,9 @@ export function initSettings() {
   $("settingsBtn").addEventListener("click", open);
   $("drawerClose").addEventListener("click", close);
   mask.addEventListener("click", close);
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
 
   // 令牌
   const tokenInput = $("tokenInput");
@@ -45,13 +48,15 @@ export function initSettings() {
   // 流式
   const streamToggle = $("streamToggle");
   streamToggle.classList.toggle("active", state.stream);
-  streamToggle.addEventListener("click", () => {
+  streamToggle.setAttribute("aria-checked", String(!!state.stream));
+  const flipStream = () => {
     if (!MODELS[state.model].supportsStream && !state.stream) {
       setSettingsStatus("该模型不支持流式输出", "err");
       return;
     }
     state.stream = !state.stream;
     streamToggle.classList.toggle("active", state.stream);
+    streamToggle.setAttribute("aria-checked", String(!!state.stream));
     if (state.stream && state.format !== "pcm16") {
       state.format = "pcm16";
       document.querySelector('input[name="format"][value="pcm16"]').checked =
@@ -59,6 +64,13 @@ export function initSettings() {
     }
     updateStreamNote();
     scheduleSave(syncBadge);
+  };
+  streamToggle.addEventListener("click", flipStream);
+  streamToggle.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      flipStream();
+    }
   });
   updateStreamNote();
 }
@@ -85,10 +97,10 @@ export function updateStreamNote() {
     el.style.color = "var(--err)";
   } else if (state.stream) {
     el.textContent = "流式模式 — 实时接收 PCM16 音频块";
-    el.style.color = "var(--ink-faint)";
+    el.style.color = "";
   } else {
     el.textContent = "非流式 — 完成后返回完整 WAV";
-    el.style.color = "var(--ink-faint)";
+    el.style.color = "";
   }
 }
 
@@ -110,7 +122,7 @@ function showTokenStatus() {
   const el = $("tokenStatus");
   if (!el) return;
   el.textContent = server.token ? "已设置" : "未设置";
-  el.style.color = server.token ? "var(--ok)" : "var(--ink-faint)";
+  el.style.color = server.token ? "var(--ok)" : "";
 }
 
 function setSettingsStatus(msg, cls) {
