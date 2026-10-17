@@ -1,11 +1,21 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>MiMo TTS Studio</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/tokens.css" />
     <link rel="stylesheet" href="/css/main.css" />
+    <script>
+      // 主题预置：避免首帧闪烁（system 时不设置 data-theme，交给 CSS 媒体查询）
+      (function () {
+        var t = localStorage.getItem("mimo_tts_theme");
+        if (t === "light" || t === "dark")
+          document.documentElement.setAttribute("data-theme", t);
+      })();
+    </script>
   </head>
   <body>
     <header class="topbar">
@@ -15,34 +25,44 @@
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="2.2"
+          stroke-width="2.4"
           stroke-linecap="round"
           aria-hidden="true"
         >
-          <path d="M3 10.2v3.6" />
-          <path d="M7.5 7.2v9.6" />
-          <path d="M12 4.2v15.6" />
-          <path d="M16.5 7.2v9.6" />
-          <path d="M21 10.2v3.6" />
+          <path d="M3.5 10.5v3" />
+          <path d="M8 6.8v10.4" />
+          <path d="M12 3.8v16.4" />
+          <path d="M16 6.8v10.4" />
+          <path d="M20.5 10.5v3" />
         </svg>
         <span class="brand-name">MiMo TTS Studio</span>
       </div>
       <div class="topbar-spacer"></div>
-      <div class="sync-dot" id="syncBadge" title="配置同步状态">
+      <div class="sync-dot pending" id="syncBadge" title="配置同步状态">
         <span class="dot"></span><span class="txt">同步中…</span>
       </div>
       <span class="topbar-divider" aria-hidden="true"></span>
-      <button class="icon-btn" id="themeToggle" aria-label="切换主题">
-        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <button
+        class="icon-btn"
+        id="themeToggle"
+        data-pref="auto"
+        aria-label="切换主题"
+        title="主题：跟随系统"
+      >
+        <svg class="ic-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4.5" width="18" height="12.5" rx="2" />
+          <path d="M9 20.5h6" />
+        </svg>
+        <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2.8v1.6M12 19.6v1.6M2.8 12h1.6M19.6 12h1.6M5.2 5.2l1.2 1.2M17.6 17.6l1.2 1.2M18.8 5.2l-1.2 1.2M6.4 17.6l-1.2 1.2" />
         </svg>
-        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M20.6 14.6A8.6 8.6 0 0 1 9.4 3.4a8.6 8.6 0 1 0 11.2 11.2z" />
         </svg>
       </button>
-      <button class="icon-btn" id="settingsBtn" aria-label="设置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <button class="icon-btn" id="settingsBtn" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
           <path d="M4 7.2h8.6M17.4 7.2H20" />
           <circle cx="15" cy="7.2" r="2.1" />
           <path d="M4 16.8h2.6M11.4 16.8H20" />
@@ -55,113 +75,100 @@
       <!-- 创作区 -->
       <section class="pane pane-composer" aria-label="创作区">
         <div class="composer-scroll">
-          <div class="block-model">
-            <div class="segmented segmented-lg" id="modelTabs" role="tablist" aria-label="模型切换">
-              <span class="seg-thumb" aria-hidden="true"></span>
-            </div>
-            <p class="model-desc" id="modelDesc"></p>
-          </div>
-
-          <div class="model-card" id="modelCard" aria-label="模型参数"></div>
-
-          <div class="field">
-            <div class="field-head">
-              <label class="field-label" for="textInput">合成文本</label>
-              <span class="field-aux mono" id="charCount"></span>
-            </div>
-            <textarea
-              id="textInput"
-              class="text-main"
-              rows="7"
-              placeholder="Hey boss — guess what? I just got the results back and I actually passed!"
-            ></textarea>
-          </div>
-
-          <div class="chip-row" id="chipRow" aria-label="已选风格标签"></div>
-
-          <div class="fold open" id="tagsFold">
-            <button class="fold-head" type="button" aria-expanded="true">
-              <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-              <span class="fold-title">风格标签</span>
-              <span class="fold-badge mono" id="tagCount">0</span>
-            </button>
-            <div class="fold-body">
-              <div class="fold-inner">
-                <div class="tags-panel" id="tagsPanel" aria-label="标签面板"></div>
+          <div class="composer-inner">
+            <div class="block-model">
+              <div
+                class="segmented"
+                id="modelTabs"
+                role="tablist"
+                aria-label="模型切换"
+              >
+                <span class="seg-thumb" aria-hidden="true"></span>
               </div>
+              <p class="model-desc" id="modelDesc"></p>
             </div>
-          </div>
 
-          <div class="fold open" id="styleFold">
-            <button class="fold-head" type="button" aria-expanded="true">
-              <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-              <span class="fold-title">风格描述</span>
-              <span class="fold-hint">可选 · user message</span>
-            </button>
-            <div class="fold-body">
-              <div class="fold-inner">
-                <textarea
-                  id="styleInput"
-                  rows="2"
-                  placeholder="Bright, bouncy, slightly sing-song tone — fast pace, rising pitch at the end."
-                ></textarea>
+            <div class="card model-card" id="modelCard" aria-label="模型参数"></div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="field-label" for="textInput">合成文本</label>
+                <span class="field-aux mono" id="charCount"></span>
               </div>
+              <textarea
+                id="textInput"
+                class="text-main"
+                rows="6"
+                placeholder="输入要合成的文本，例如：Hey boss — guess what? I just got the results back and I actually passed!"
+              ></textarea>
             </div>
-          </div>
 
-          <div class="fold" id="directorFold">
-            <button class="fold-head" type="button" aria-expanded="false">
-              <svg class="fold-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-              <span class="fold-title">导演模式</span>
-              <span class="fold-hint">角色 · 场景 · 指导</span>
-            </button>
-            <div class="fold-body">
-              <div class="fold-inner director-grid">
-                <div class="director-item">
-                  <label class="mini-label" for="directorRole">角色</label>
+            <div class="style-row">
+              <div class="chip-row" id="chipRow" aria-label="已选风格标签"></div>
+              <button class="add-style" id="addStyleBtn" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M12 5.5v13M5.5 12h13" />
+                </svg>
+                <span>风格</span>
+              </button>
+            </div>
+
+            <details class="adv" id="advBlock">
+              <summary>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+                高级设置
+              </summary>
+              <div class="adv-body">
+                <div>
+                  <label class="mini-label" for="styleInput">风格描述（可选）</label>
                   <textarea
-                    id="directorRole"
+                    id="styleInput"
                     rows="2"
-                    placeholder="百年门阀岑家的现任大当家…"
+                    placeholder="Bright, bouncy, slightly sing-song tone — fast pace, rising pitch at the end."
                   ></textarea>
                 </div>
-                <div class="director-item">
-                  <label class="mini-label" for="directorScene">场景</label>
-                  <textarea
-                    id="directorScene"
-                    rows="2"
-                    placeholder="在祠堂的阴影里…"
-                  ></textarea>
-                </div>
-                <div class="director-item">
-                  <label class="mini-label" for="directorGuide">指导</label>
-                  <textarea
-                    id="directorGuide"
-                    rows="2"
-                    placeholder="冰冷、慵懒却极具威压的低音御姐…"
-                  ></textarea>
+                <div>
+                  <div class="mini-label">导演模式 · 角色 / 场景 / 指导</div>
+                  <div class="adv-grid">
+                    <textarea
+                      id="directorRole"
+                      rows="3"
+                      placeholder="角色：百年门阀岑家的现任大当家…"
+                      aria-label="角色"
+                    ></textarea>
+                    <textarea
+                      id="directorScene"
+                      rows="3"
+                      placeholder="场景：在祠堂的阴影里…"
+                      aria-label="场景"
+                    ></textarea>
+                    <textarea
+                      id="directorGuide"
+                      rows="3"
+                      placeholder="指导：冰冷、慵懒却极具威压的低音御姐…"
+                      aria-label="指导"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
-            </div>
+            </details>
           </div>
         </div>
 
         <div class="composer-foot">
-          <div class="status" id="statusArea"></div>
-          <div id="progressArea" hidden>
-            <div class="progress-line" aria-hidden="true"></div>
-            <div class="note mono" id="progressText">连接中…</div>
+          <div class="composer-foot-inner">
+            <div class="status" id="statusArea"></div>
+            <div id="progressArea" hidden>
+              <div class="progress-line" aria-hidden="true"></div>
+              <div class="note mono" id="progressText">连接中…</div>
+            </div>
+            <button class="synth-btn" id="synthesizeBtn">
+              <span class="synth-label" id="synthLabel">合成</span>
+              <kbd id="kbdHint"></kbd>
+            </button>
           </div>
-          <button class="synth-btn" id="synthesizeBtn">
-            <span class="synth-label" id="synthLabel">合成</span>
-            <kbd id="kbdHint"></kbd>
-          </button>
         </div>
       </section>
 
@@ -171,8 +178,8 @@
           <span class="sheet-grip" aria-hidden="true"></span>
           <span class="output-title">最近合成</span>
           <span class="output-count mono" id="historyCount"></span>
-          <svg class="sheet-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M6 9l6 6 6-6" />
+          <svg class="sheet-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 15l6-6 6 6" />
           </svg>
         </div>
 
@@ -193,7 +200,7 @@
               <span class="meta-spacer"></span>
               <a href="#" id="downloadLink" download="tts-output.wav" class="download-link">
                 下载
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M12 4.5v10.5" />
                   <path d="M7.5 11L12 15.5l4.5-4.5" />
                   <path d="M5 19.5h14" />
@@ -214,13 +221,27 @@
               <path d="M74 12v16" />
               <path d="M84 17v6" />
             </svg>
-            <p class="empty-title">输入文本，点「合成」生成第一段语音</p>
-            <p class="empty-sub">结果会自动保存到历史，点击任意条目回放</p>
+            <p class="empty-title">还没有合成记录</p>
+            <p class="empty-sub">输入文本，点「合成」生成第一段语音</p>
           </div>
 
           <div class="history-list" id="historyList"></div>
         </div>
       </section>
+    </div>
+
+    <!-- 风格标签面板 -->
+    <div class="panel-mask" id="tagMask"></div>
+    <div class="tag-popover" id="tagPopover" role="dialog" aria-label="风格标签">
+      <div class="tag-popover-head">
+        <span class="tag-popover-title">风格标签</span>
+        <button class="icon-btn" id="tagClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <div id="tagsPanel"></div>
     </div>
 
     <!-- 设置抽屉 -->
@@ -229,7 +250,7 @@
       <div class="drawer-head">
         <h2>设置</h2>
         <button class="icon-btn" id="drawerClose" aria-label="关闭">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
         </button>
@@ -247,7 +268,7 @@
             placeholder="Worker 的 CONFIG_TOKEN"
             autocomplete="off"
           />
-          <p class="note">服务端设置了 CONFIG_TOKEN 时必填，仅存于本浏览器。</p>
+          <p class="note">仅存于本浏览器。服务端设置了 CONFIG_TOKEN 时必填。</p>
         </section>
 
         <section class="drawer-sec">
@@ -277,7 +298,7 @@
         <section class="drawer-sec drawer-foot">
           <div class="field-label">API Key</div>
           <p class="note">
-            密钥只保存在 Cloudflare（Secret：<span class="mono">MIMO_API_KEY</span>），浏览器不接触。如需更换：
+            密钥只保存在 Cloudflare（Secret：<span class="mono">MIMO_API_KEY</span>），浏览器不接触。更换：
             <span class="mono cmd">wrangler secret put MIMO_API_KEY</span>
           </p>
         </section>

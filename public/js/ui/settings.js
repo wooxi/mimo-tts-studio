@@ -107,7 +107,14 @@ export function updateStreamNote() {
 export function syncBadge(status) {
   const el = $("syncBadge");
   el.className =
-    "sync-dot" + (status === "ok" ? " ok" : status === "err" ? " err" : "");
+    "sync-dot" +
+    (status === "ok"
+      ? " ok"
+      : status === "err"
+        ? " err"
+        : status === "off"
+          ? ""
+          : " pending");
   el.querySelector(".txt").textContent =
     status === "ok"
       ? "已同步"

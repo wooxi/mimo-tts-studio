@@ -21,19 +21,32 @@ import { initSettings, syncBadge, updateStreamNote } from "./ui/settings.js";
 
 const $ = (id) => document.getElementById(id);
 
-// ---------- 主题 ----------
+// ---------- 主题（跟随系统 / 浅 / 深 三态循环） ----------
 const themeBtn = $("themeToggle");
-const savedTheme = localStorage.getItem("mimo_tts_theme");
-if (savedTheme === "dark" || savedTheme === "light")
-  document.documentElement.setAttribute("data-theme", savedTheme);
+const THEME_ORDER = ["auto", "light", "dark"];
+const THEME_LABEL = { auto: "跟随系统", light: "浅色", dark: "深色" };
+
+function currentThemePref() {
+  return localStorage.getItem("mimo_tts_theme") || "auto";
+}
+
+function applyThemePref(pref) {
+  if (pref === "auto") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", pref);
+  }
+  localStorage.setItem("mimo_tts_theme", pref);
+  themeBtn.dataset.pref = pref;
+  themeBtn.title = `主题：${THEME_LABEL[pref]}`;
+  window.dispatchEvent(new CustomEvent("themechange"));
+}
+
+themeBtn.dataset.pref = currentThemePref();
 themeBtn.addEventListener("click", () => {
   const next =
-    document.documentElement.getAttribute("data-theme") === "light"
-      ? "dark"
-      : "light";
-  document.documentElement.setAttribute("data-theme", next);
-  localStorage.setItem("mimo_tts_theme", next);
-  window.dispatchEvent(new CustomEvent("themechange"));
+    THEME_ORDER[(THEME_ORDER.indexOf(currentThemePref()) + 1) % THEME_ORDER.length];
+  applyThemePref(next);
 });
 
 // ---------- 模型切换（分段滑块） ----------
@@ -235,9 +248,12 @@ function syncTagPills() {
   document.querySelectorAll("#tagsPanel .tag-pill").forEach((pill) => {
     pill.classList.toggle("active", state.styleTags.has(pill.textContent));
   });
-  $("tagCount").textContent = state.styleTags.size
-    ? String(state.styleTags.size)
-    : "";
+  const btn = $("addStyleBtn");
+  if (btn) {
+    const n = state.styleTags.size;
+    btn.querySelector("span").textContent = n ? `风格 · ${n}` : "风格";
+    btn.classList.toggle("has-tags", n > 0);
+  }
 }
 const removeChip = (tag) => {
   state.styleTags.delete(tag);
@@ -280,13 +296,22 @@ textInput.addEventListener("keydown", (e) => {
   }
 });
 
-// ---------- 折叠区 ----------
-document.querySelectorAll(".fold-head").forEach((head) => {
-  head.addEventListener("click", () => {
-    const fold = head.closest(".fold");
-    const open = fold.classList.toggle("open");
-    head.setAttribute("aria-expanded", String(open));
-  });
+// ---------- 风格标签面板（popover / 底部 sheet） ----------
+const tagPopover = $("tagPopover");
+const tagMask = $("tagMask");
+const openTagsPanel = () => {
+  tagPopover.classList.add("open");
+  tagMask.classList.add("open");
+};
+const closeTagsPanel = () => {
+  tagPopover.classList.remove("open");
+  tagMask.classList.remove("open");
+};
+$("addStyleBtn").addEventListener("click", openTagsPanel);
+$("tagClose").addEventListener("click", closeTagsPanel);
+tagMask.addEventListener("click", closeTagsPanel);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeTagsPanel();
 });
 
 // 移动端输出抽屉把手

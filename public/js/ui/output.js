@@ -189,12 +189,11 @@ async function loadHistory() {
     list.textContent = "";
     $("historyCount").textContent = data.length ? `${data.length} 条` : "";
     if (!data.length) {
-      const tip = document.createElement("div");
-      tip.className = "history-more";
-      tip.textContent = "暂无历史记录";
-      list.appendChild(tip);
+      // 空态统一由 #emptyState 表达，避免重复提示
+      if ($("playerSection").hidden) $("emptyState").hidden = false;
       return;
     }
+    $("emptyState").hidden = true;
     data.forEach((item, i) => {
       const el = historyItemEl(item);
       el.style.animationDelay = `${Math.min(i, 12) * 0.03}s`;
@@ -272,11 +271,8 @@ async function deleteHistory(id, el) {
   const list = $("historyList");
   const remaining = list.querySelectorAll(".history-item").length;
   $("historyCount").textContent = remaining ? `${remaining} 条` : "";
-  if (!remaining) {
-    const tip = document.createElement("div");
-    tip.className = "history-more";
-    tip.textContent = "暂无历史记录";
-    list.appendChild(tip);
+  if (!remaining && $("playerSection").hidden) {
+    $("emptyState").hidden = false;
   }
 }
 
