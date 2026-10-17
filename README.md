@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.svg" width="108" height="108" alt="MiMo TTS Studio logo" />
+</p>
+
 # MiMo TTS Studio
 
 小米 MiMo TTS 前端工作台，运行在 Cloudflare Workers 全家桶上：
