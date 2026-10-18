@@ -14,6 +14,7 @@
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
 import { readFile, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -21,8 +22,43 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PUBLIC = join(ROOT, "public");
 
-const PORT = Number(process.env.PORT || 8787);
-const TOKEN = process.env.CONFIG_TOKEN || "devtoken";
+/**
+ * `.dev.vars` is read the way `wrangler dev` reads it, so one file serves both
+ * entry points and no secret has to be exported into the shell or pasted into a
+ * command. Real environment variables win, so `MIMO_MOCK=0 node ...` still
+ * overrides whatever the file says.
+ */
+function loadDevVars() {
+  const out = {};
+  let text;
+  try {
+    text = readFileSync(join(ROOT, ".dev.vars"), "utf8");
+  } catch {
+    return out;
+  }
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key) out[key] = value;
+  }
+  return out;
+}
+
+const DEV_VARS = loadDevVars();
+const setting = (key) => process.env[key] ?? DEV_VARS[key];
+
+const PORT = Number(setting("PORT") || 8787);
+const TOKEN = setting("CONFIG_TOKEN") || "devtoken";
 
 /* ══════════════════════════════════════════════════════════ D1 shim ══ */
 
@@ -194,13 +230,15 @@ const env = {
   ASSETS,
   HISTORY_DB: D1,
   AUDIO_BUCKET: BUCKET,
-  UPSTREAM_URL: process.env.UPSTREAM_URL || "https://api.xiaomimimo.com/v1/chat/completions",
-  MIMO_API_KEY: process.env.MIMO_API_KEY || "harness-placeholder",
+  UPSTREAM_URL: setting("UPSTREAM_URL") || "https://api.xiaomimimo.com/v1/chat/completions",
+  MIMO_API_KEY: setting("MIMO_API_KEY") || "harness-placeholder",
   CONFIG_TOKEN: TOKEN,
-  HISTORY_LIMIT: "200",
-  MAX_AUDIO_BYTES: "26214400",
-  AUDIO_URL_TTL: "1800",
-  MIMO_MOCK: process.env.MIMO_MOCK === "0" ? undefined : "1",
+  HISTORY_LIMIT: setting("HISTORY_LIMIT") || "200",
+  MAX_AUDIO_BYTES: setting("MAX_AUDIO_BYTES") || "26214400",
+  AUDIO_URL_TTL: setting("AUDIO_URL_TTL") || "1800",
+  // Mock unless explicitly turned off, so a stray real key in .dev.vars can
+  // never cause an accidental billed call during routine local testing.
+  MIMO_MOCK: setting("MIMO_MOCK") === "0" ? undefined : "1",
 };
 
 const ctx = {
@@ -280,6 +318,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`MiMo TTS Studio harness  →  http://127.0.0.1:${PORT}`);
   console.log(`  CONFIG_TOKEN = ${TOKEN}`);
   console.log(`  upstream     = ${env.MIMO_MOCK ? "MOCK (no network)" : env.UPSTREAM_URL}`);
+  console.log(`  api key      = ${env.MIMO_MOCK ? "not used" : env.MIMO_API_KEY === "harness-placeholder" ? "MISSING — set MIMO_API_KEY in .dev.vars" : "loaded from .dev.vars"}`);
   console.log(`  data         = in-memory (D1 via node:sqlite, R2 via a Map); resets on exit`);
   console.log(`  ctrl-c to stop`);
 });

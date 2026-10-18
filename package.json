@@ -13,6 +13,7 @@
     "check:auth": "node scripts/check-failclosed.mjs",
     "check:migration": "node scripts/check-migration.mjs",
     "check:live": "node scripts/check-live.mjs",
+    "check:upstream": "node scripts/check-upstream.mjs",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 execute mimo-tts-db --local --file=src/db/schema.sql",
     "db:remote": "wrangler d1 execute mimo-tts-db --remote --file=src/db/schema.sql",

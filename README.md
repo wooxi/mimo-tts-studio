@@ -161,11 +161,22 @@ npm run brand            # 重新生成 brand/drafts/ 下的 logo 候选稿
 node scripts/local-harness.mjs          # http://127.0.0.1:8787，CONFIG_TOKEN=devtoken，假上游
 node scripts/smoke.mjs                  # 91 项端到端断言：鉴权、冷库迁移、Range、SSE、音色库、安全头…
 node scripts/check-failclosed.mjs       # 未设 CONFIG_TOKEN 时的拒绝行为（含伪造请求头回归）
-node scripts/check-migration.mjs        # 已有 v4 数据库升级到 v5 的迁移路径
+node scripts/check-migration.mjs        # 已有 v4 数据库升级到 v5 的迁移路径（40 项）
 node scripts/check-live.mjs https://…   # 校验一个已部署实例：响应头、构建版本、访问控制
 ```
 
-`scripts/local-harness.mjs` 只用 `node:sqlite` 与内存对象模拟 D1 / R2，`src/` 一行不改。它不是部署目标，只是让整条链路可以在没有 workerd 的环境里被验证。
+`scripts/local-harness.mjs` 只用 `node:sqlite` 与内存对象模拟 D1 / R2，`src/` 一行不改。它不是部署目标，只是让整条链路可以在没有 workerd 的环境里被验证。它会读取 `.dev.vars`（和 `wrangler dev` 一致），所以密钥写一次就够，不用导出到 shell 或写进命令：
+
+```ini
+# .dev.vars（已在 .gitignore 里）
+MIMO_API_KEY=你的小米 MiMo 密钥
+MIMO_MOCK=0          # 设为 0 才会打真上游；不写或写别的值一律走假上游
+CONFIG_TOKEN=devtoken
+```
+
+**默认走假上游是刻意的**：`.dev.vars` 里放着真密钥时，日常测试也不会不小心产生计费调用，必须显式写 `MIMO_MOCK=0` 才联网。
+
+接了真密钥之后可以跑 `node scripts/check-upstream.mjs`。它打的是真接口，用来核对那些只能靠官方文档推断、之前没能实测的东西：WAV 的实际采样率与位深、MP3 的容器形态、流式响应里 `final_text_preview` 出现在哪些 delta、`usage` 是否只在最后出现一次、ASR 的真实返回形状。输出里带 `·` 的都是实测值，确认后应当回填进 `docs/mimo-api-reference.md`。
 
 `scripts/check-live.mjs` 补的是本地跑不出来的那一类问题：安全响应头到底有没有真的下发。Worker 里设了头，不等于线上就有——请求可能被资源层直接接走，压根不进 Worker。它带缓存穿透参数请求 CSS / JS / SVG 这些非 HTML 文件，因为这些文件带没带头能直接说明是谁应答的。`npm run check:live -- https://你的域名` 即可。
 
