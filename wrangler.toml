@@ -4,10 +4,13 @@ compatibility_date = "2025-10-01"
 
 # 静态资源（public/）由 Worker 托管，不需要构建步骤。
 #
-# 安全响应头只能由 Worker 下发。Cloudflare 文档明确写着：_headers 文件里的规则
-# “不会应用到由 Worker 代码生成的响应”，而这里 run_worker_first = true，每个
-# 请求都进 Worker——所以 _headers 永远不会生效（实测线上 CSS/JS 一个头都没有），
-# 而且它还会被当成普通资源公开出去。规则统一放在 src/worker.js 的 harden()。
+# 安全响应头由 src/worker.js 的 harden() 给每个响应加上。这里**不能**用
+# public/_headers：Cloudflare 文档写明 _headers 的规则不会应用到 Worker 生成的
+# 响应，而下面 run_worker_first = true 会让每个请求都先进 Worker。
+#
+# 注意 run_worker_first 需要 wrangler ≥ 4.41 才被识别。用更老的版本部署时它会被
+# 当成未知字段静默丢掉，于是资源改由资源层直接应答、Worker 完全看不到——表现就是
+# 线上一个安全头都没有。CI 里因此必须先 npm ci，见 .github/workflows/deploy.yml。
 [assets]
 directory = "./public"
 binding = "ASSETS"

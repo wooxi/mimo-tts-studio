@@ -67,7 +67,7 @@
 | 用量统计 | 每次**到达上游**的调用落一行 `usage`（被本地校验拦下的请求不落行），设置抽屉展示近 30 天调用数、字数、音频总量、平均耗时与按模型分布 |
 | 深浅色 | auto / light / dark 三态，首屏前应用，`auto` 跟随系统 |
 | 键盘可达性 | 跳到主内容链接、统一的 `focus-visible` 描边、开关与分段控件均可用键盘操作 |
-| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'`。由 Worker 给**每一个**响应加上，包括 CSS/JS 与 API——因为 `run_worker_first = true` 时所有请求都进 Worker，而 Cloudflare 明确说明 `_headers` 文件的规则不会应用到 Worker 生成的响应，所以这里不能靠 `_headers` |
+| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'`。由 Worker 给**每一个**响应加上，包括 CSS/JS 与 API。这里不用 `public/_headers`：它的规则不会应用到 Worker 生成的响应，而 `run_worker_first = true` 让每个请求都先进 Worker |
 | fail-closed | 未设置 `CONFIG_TOKEN` 时拒绝所有 API 请求，避免部署变成对全网开放的免费代理 |
 | 本地假上游 | `npm run dev:mock` 返回真实结构的 WAV / SSE，不发请求、不消耗额度 |
 
@@ -167,7 +167,9 @@ node scripts/check-live.mjs https://…   # 校验一个已部署实例：响应
 
 `scripts/local-harness.mjs` 只用 `node:sqlite` 与内存对象模拟 D1 / R2，`src/` 一行不改。它不是部署目标，只是让整条链路可以在没有 workerd 的环境里被验证。
 
-`scripts/check-live.mjs` 补的是本地跑不出来的那一类问题：安全响应头到底有没有真的下发。Worker 里设了头，不等于线上就有——请求可能被资源层或边缘缓存接走，压根不进 Worker。它带缓存穿透参数请求 CSS / JS / SVG 这些非 HTML 文件，因为这些文件带没带头能直接说明是谁应答的。`npm run check:live -- https://你的域名` 即可。
+`scripts/check-live.mjs` 补的是本地跑不出来的那一类问题：安全响应头到底有没有真的下发。Worker 里设了头，不等于线上就有——请求可能被资源层直接接走，压根不进 Worker。它带缓存穿透参数请求 CSS / JS / SVG 这些非 HTML 文件，因为这些文件带没带头能直接说明是谁应答的。`npm run check:live -- https://你的域名` 即可。
+
+> **CI 里必须先 `npm ci`。** `cloudflare/wrangler-action@v3` 在找不到本地 wrangler 时会回退到自己 pin 的 **3.90.0**，那个版本不认识 `assets.run_worker_first`，会把它当成未知字段静默丢掉，于是静态资源改由资源层应答、Worker 完全收不到请求，线上所有安全头都会消失。装完依赖后 action 会用 `package-lock.json` 里锁定的 wrangler 4.x。这条已经踩过一次，工作流里加了说明。
 
 ## 配置项
 

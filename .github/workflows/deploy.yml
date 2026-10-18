@@ -19,6 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Not optional. Without it the action falls back to its own pinned
+      # wrangler (3.90.0), which silently drops `assets.run_worker_first` as an
+      # unknown field — the Worker then never sees asset requests, so every
+      # header it sets is missing in production. Installing first makes the
+      # action use the version pinned in package-lock.json.
+      - name: Install dependencies
+        run: npm ci
+
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
         with:
