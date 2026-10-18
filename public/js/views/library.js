@@ -63,7 +63,7 @@ export function initLibrary(ctx) {
         body,
         h("p", {
           class: "note",
-          text: "还没有保存的音色。设计或克隆出一个满意的嗓音后，点「存为我的音色」就会出现在这里。",
+          text: "暂无保存的音色",
         }),
       );
       return;
@@ -102,7 +102,6 @@ export function initLibrary(ctx) {
               type: "button",
               class: "btn tiny",
               text: "应用",
-              title: "把这个音色载入创作区",
               onclick: () => apply(v),
             }),
             h("button", {

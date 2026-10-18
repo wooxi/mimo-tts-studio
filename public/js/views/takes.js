@@ -50,13 +50,6 @@ export function initTakes(ctx) {
           ),
         );
       }),
-      h("p", {
-        class: "note",
-        text:
-          takes.length > 1
-            ? "同一次请求的多条结果。语音合成有随机性，多生成几条再挑是正常用法。"
-            : "",
-      }),
     );
   }
 

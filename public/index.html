@@ -6,14 +6,14 @@
     <meta name="color-scheme" content="light dark" />
     <meta
       name="description"
-      content="MiMo TTS Studio — 小米 MiMo 语音模型的创作工作台：音色设计、音色克隆、导演模式与标签控制。"
+      content="MiMo TTS Studio — 语音合成工作台"
     />
     <title>MiMo TTS Studio</title>
 
     <link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />
     <link rel="apple-touch-icon" href="/brand/favicon.svg" />
     <meta property="og:title" content="MiMo TTS Studio" />
-    <meta property="og:description" content="小米 MiMo 语音模型的创作工作台" />
+    <meta property="og:description" content="MiMo 语音合成工作台" />
     <meta property="og:image" content="/brand/og.svg" />
 
     <link rel="stylesheet" href="/css/tokens.css" />
@@ -41,7 +41,6 @@
           </g>
         </svg>
         <b>MiMo TTS Studio</b>
-        <span class="brand-sub">语音创作工作台</span>
       </div>
 
       <span class="spacer"></span>
@@ -83,11 +82,9 @@
               <header class="layer-head">
                 <span class="layer-no">1</span>
                 <h2 id="layerVoice">音色</h2>
-                <span class="layer-map">audio.voice</span>
               </header>
 
               <div class="seg" id="modelSeg" role="tablist" aria-label="模型"></div>
-              <p class="layer-desc" id="modelDesc"></p>
               <div class="layer-body" id="voicePanel"></div>
 
               <div class="library" id="voiceLibrary">
@@ -104,7 +101,6 @@
               <header class="layer-head">
                 <span class="layer-no">2</span>
                 <h2 id="layerDirection">演绎</h2>
-                <span class="layer-map">messages · role=user</span>
               </header>
               <div class="layer-body" id="directionPanel"></div>
             </section>
@@ -114,7 +110,6 @@
               <header class="layer-head">
                 <span class="layer-no">3</span>
                 <h2 id="layerScript">台词</h2>
-                <span class="layer-map">messages · role=assistant</span>
               </header>
               <div class="layer-body" id="scriptPanel"></div>
             </section>
@@ -133,7 +128,6 @@
                 <pre id="payloadView"></pre>
                 <div class="row wrap">
                   <button class="btn tiny" id="copyCurl" type="button">复制为 cURL</button>
-                  <span class="note">密钥不会出现在这里；克隆样本已省略。</span>
                 </div>
               </div>
             </details>
@@ -218,8 +212,7 @@
               <path d="M34 13v14" /><path d="M44 8v24" /><path d="M54 15v10" />
               <path d="M64 6v28" /><path d="M74 12v16" /><path d="M84 17v6" />
             </svg>
-            <b>还没有产物</b>
-            <span>填好上面三层，按合成，这里会出现波形与历史</span>
+            <b>暂无产物</b>
           </div>
 
           <div class="history" id="historyList"></div>
@@ -262,26 +255,11 @@
       <div class="drawer-body">
         <section class="drawer-sec">
           <h3>访问令牌</h3>
-          <div class="field-head">
-            <label class="label" for="tokenInput">CONFIG_TOKEN</label>
-            <span class="hint" id="tokenState"></span>
-          </div>
-          <input type="password" id="tokenInput" placeholder="Worker 的 CONFIG_TOKEN" autocomplete="off" />
-          <p class="note">只保存在这个浏览器里。改动后需要重新加载页面。</p>
+          <input type="password" id="tokenInput" aria-label="访问令牌" placeholder="粘贴访问令牌" autocomplete="off" />
           <div class="row wrap">
+            <span class="hint" id="tokenState"></span>
             <button class="btn tiny" id="tokenClear" type="button">清除本机令牌</button>
           </div>
-        </section>
-
-        <section class="drawer-sec">
-          <h3>默认输出格式</h3>
-          <div class="chip-row" id="formatDefaults"></div>
-          <p class="note">流式输出固定使用 PCM16，并在浏览器里拼成 WAV。</p>
-        </section>
-
-        <section class="drawer-sec">
-          <h3>服务端状态</h3>
-          <div id="runtimeInfo"></div>
         </section>
 
         <section class="drawer-sec">
@@ -289,24 +267,15 @@
           <div id="usageInfo"></div>
         </section>
 
-        <section class="drawer-sec">
-          <h3>开发</h3>
+        <section class="drawer-sec drawer-foot">
+          <h3>调试</h3>
           <div class="toggle-row">
-            <span class="t-label">在界面上显示错误详情</span>
+            <span class="t-label">显示错误详情</span>
             <span class="toggle" id="errorsToggle" role="switch" tabindex="0" aria-label="显示错误详情"></span>
           </div>
-          <p class="note">开启后，失败信息会附带上游返回的原始文本，便于排查。</p>
           <div class="row wrap">
             <button class="btn tiny danger" id="resetConfig" type="button">清除本地配置快照</button>
           </div>
-        </section>
-
-        <section class="drawer-sec drawer-foot">
-          <h3>关于</h3>
-          <p class="note">
-            上游密钥只存在于 Cloudflare Secret <span class="mono">MIMO_API_KEY</span>，浏览器全程不接触。
-            更换密钥请执行 <span class="mono">wrangler secret put MIMO_API_KEY</span>。
-          </p>
         </section>
       </div>
     </aside>

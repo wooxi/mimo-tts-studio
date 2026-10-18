@@ -67,7 +67,7 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
     rows: 7,
     spellcheck: "false",
     placeholder:
-      "输入要合成的文本。可以在任意位置插入括号描述语气、情绪或能发出声音的动作，例如：\n（紧张，深呼吸）呼……冷静，不就是一个面试吗……（小声）哎呀，领带歪没歪？",
+      "（紧张，深呼吸）呼……冷静，不就是一个面试吗……（小声）哎呀，领带歪没歪？",
     value: s.text,
     oninput: (e) => {
       ctx.set({ text: e.target.value }, { silent: true });
@@ -95,7 +95,6 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
   const styleBtn = h("button", {
     type: "button",
     class: "pill-btn",
-    title: "写在文本最开头的 (风格) 标签，决定整段的发音风格",
     onclick: () => ctx.openTagSheet("style"),
   });
 
@@ -108,7 +107,6 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
       type: "button",
       class: "pill-btn",
       html: `${ic("plus")}<span>句内标签</span>`,
-      title: "插入到光标处，控制某一句的呼吸、情绪或语速",
       disabled: !caps.inlineTags,
       onclick: () => ctx.openTagSheet("inline"),
     }),
@@ -127,7 +125,6 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
         type: "button",
         class: "pill-btn",
         html: `${ic("mic")}<span>唱歌</span>`,
-        title: "在文本最开头写入 (唱歌)。歌词要完整，残缺会导致跑调",
         onclick: () => ctx.set({ text: toggleSinging(ctx.store.get().text) }),
       })
     : null;
@@ -169,7 +166,6 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
     "自动分段并拼接",
     s.autoSplit,
     (on) => ctx.set({ autoSplit: on }),
-    "超过阈值时按句切分，逐段合成后在浏览器端拼成完整 WAV。",
   );
 
   /* ---- soft update ------------------------------------------------------ */
@@ -224,15 +220,15 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
       const over = st.text.length > LIMITS.segmentAt;
       splitNote.className = over ? "note warn" : "note";
       splitNote.textContent = over
-        ? `当前 ${st.text.length} 字，建议开启自动分段：超过 ${LIMITS.segmentAt} 字后一次性合成容易丢尾。`
-        : `超过 ${LIMITS.segmentAt} 字时建议开启：按句切分、顺序合成、在浏览器里拼回一个完整 WAV。`;
+        ? `当前 ${st.text.length} 字，建议开启分段`
+        : "";
       return;
     }
     const p = planSegments(st.text, LIMITS.segmentAt);
     splitNote.className = "note";
     splitNote.textContent = p.needed
-      ? `将切成 ${p.count} 段（${p.lengths.join(" / ")} 字），逐段合成后拼接为一个文件。`
-      : "当前长度不需要切分，将直接合成 1 段。";
+      ? `将切成 ${p.count} 段（${p.lengths.join(" / ")} 字）`
+      : "";
   }
 
   /* ---- assemble -------------------------------------------------------- */
@@ -245,9 +241,6 @@ function render(root, ctx, { setSoft = () => {} } = {}) {
         "智能润色播报文本",
         s.optimize,
         (on) => ctx.set({ optimize: on }),
-        s.optimize
-          ? "模型会先润色台词（留空则自动生成），并回传最终文本。"
-          : "关闭后必须自己写台词。",
       ),
     );
   }
@@ -344,7 +337,7 @@ export function insertInlineTag(textarea, tag) {
 
 /* ---------------------------------------------------------------- shared -- */
 
-function switchRow(label, checked, onChange, note) {
+function switchRow(label, checked, onChange) {
   const sw = h("div", {
     class: "toggle",
     role: "switch",
@@ -374,6 +367,5 @@ function switchRow(label, checked, onChange, note) {
       h("span", { class: "t-label", text: label }),
       sw,
     ),
-    note ? h("p", { class: "note", text: note }) : null,
   );
 }

@@ -154,7 +154,7 @@ function paint(body, tabs, ctx) {
     body.append(
       h("p", {
         class: "note",
-        text: "标签会插入到台词的光标位置。括号里只能写能发出声音的内容（语气、情绪、呼吸、笑声），不能写转身、坐下这类身体动作。",
+        text: "括号内只能写能发出声音的内容",
       }),
     );
   }

@@ -52,7 +52,7 @@ export const STYLE_GROUPS = [
     id: "roleplay",
     label: "角色扮演",
     tags: ["孙悟空", "林黛玉"],
-    note: "角色标签改变的是说话风格；想换基础嗓音请切换音色，或用「音色设计」。",
+    note: "改变说话风格，不改变基础嗓音。",
   },
 ];
 

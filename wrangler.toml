@@ -2,22 +2,15 @@ name = "mimo-tts-studio"
 main = "src/worker.js"
 compatibility_date = "2025-10-01"
 
-# 静态资源（public/）由 Worker 托管，不需要构建步骤。
-#
-# 安全响应头由 src/worker.js 的 harden() 给每个响应加上。这里**不能**用
-# public/_headers：Cloudflare 文档写明 _headers 的规则不会应用到 Worker 生成的
-# 响应，而下面 run_worker_first = true 会让每个请求都先进 Worker。
-#
-# 注意 run_worker_first 需要 wrangler ≥ 4.41 才被识别。用更老的版本部署时它会被
-# 当成未知字段静默丢掉，于是资源改由资源层直接应答、Worker 完全看不到——表现就是
-# 线上一个安全头都没有。CI 里因此必须先 npm ci，见 .github/workflows/deploy.yml。
+# 静态资源由 Worker 托管，无构建步骤。
+# 安全响应头由 src/worker.js 对每个响应下发（public/_headers 对 Worker 响应无效）。
+# run_worker_first 需要 wrangler ≥ 4.41；CI 必须先 npm ci，见 .github/workflows/deploy.yml。
 [assets]
 directory = "./public"
 binding = "ASSETS"
-# 让 Worker 先处理每个请求：/api/* 永远不会被同名静态资源抢走路由。
 run_worker_first = true
 
-# 配置 + 历史元数据 + 用量（同一 D1 库）
+# 配置 + 历史元数据 + 用量
 [[d1_databases]]
 binding = "HISTORY_DB"
 database_name = "mimo-tts-db"
@@ -29,25 +22,23 @@ binding = "AUDIO_BUCKET"
 bucket_name = "mimo-tts-audio"
 
 [vars]
-# 上游地址。官方 OpenAI 兼容端点：
-#   按量付费  https://api.xiaomimimo.com/v1/chat/completions
-#   Token Plan https://token-plan-cn.xiaomimimo.com/v1/chat/completions
+# 上游端点（按量付费 / Token Plan 二选一）：
+#   https://api.xiaomimimo.com/v1/chat/completions
+#   https://token-plan-cn.xiaomimimo.com/v1/chat/completions
 UPSTREAM_URL = "https://api.xiaomimimo.com/v1/chat/completions"
 
-# 历史保留条数（超出后自动清理最旧的元数据与音频）
+# 历史保留条数（超出后清理最旧的未收藏项）
 HISTORY_LIMIT = "200"
 
-# 单个音频对象的硬上限（字节）。VoiceClone 的 Base64 样本上游限 10MB。
+# 单个音频对象的硬上限（字节）
 MAX_AUDIO_BYTES = "26214400"
 
-# 签名音频链接的有效期（秒）。<audio> 无法携带请求头，因此走短期签名 URL。
+# 签名播放链接的有效期（秒）
 AUDIO_URL_TTL = "1800"
 
-# 设为 "1" 时启用本地假上游（不发真实请求，返回合成的测试音）。
-# 仅用于开发与端到端自测，生产环境请保持未设置。
-# MIMO_MOCK = "1"
+# 本地假上游（仅开发）：MIMO_MOCK = "1"
+# 跨域白名单（可选）：ALLOWED_ORIGINS = "https://example.com"
 
-# 机密（用 wrangler secret put 设置）：
-#   MIMO_API_KEY  — 小米 MiMo 开放平台密钥（必需）
-#   CONFIG_TOKEN  — 访问令牌。未设置时服务端会拒绝所有 /api/* 与 /audio/*，
-#                   以免把 API Key 变成一个对全网开放的免费代理。
+# 机密（wrangler secret put）：
+#   MIMO_API_KEY  上游密钥（必需）
+#   CONFIG_TOKEN  访问令牌（必需；未设置时服务端拒绝所有请求）

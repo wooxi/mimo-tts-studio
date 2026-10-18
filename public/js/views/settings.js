@@ -1,15 +1,17 @@
 /**
  * Settings drawer and the first-run gate.
  *
- * The gate is not decoration: the Worker refuses every /api request while
- * CONFIG_TOKEN is unset, so a fresh deployment has to explain what to run
- * instead of showing an empty, broken-looking studio.
+ * The gate exists because the Worker refuses every /api request while the
+ * access token is unset, so a fresh deployment needs a way to enter it
+ * rather than showing an empty studio.
+ *
+ * Everything about the upstream — endpoint, key material, mock mode — is
+ * Worker-side configuration and deliberately has no representation here.
  */
 
-import { h, setChildren, $, copyText, formatBytes } from "../core/dom.js";
+import { h, setChildren, $, formatBytes } from "../core/dom.js";
 import { ic } from "../icons.js";
 import { auth, get, health } from "../core/api.js";
-import { FORMATS, LIMITS } from "../domain/models.js";
 
 export function initSettings(ctx) {
   const drawer = $("#settingsDrawer");
@@ -19,7 +21,7 @@ export function initSettings(ctx) {
     drawer.classList.add("is-open");
     mask.classList.add("is-open");
     document.body.classList.add("is-locked");
-    paintRuntime(ctx);
+    paintUsage($("#usageInfo"));
   };
   const close = () => {
     drawer.classList.remove("is-open");
@@ -73,35 +75,6 @@ export function initSettings(ctx) {
     ctx.set({ showErrors: on });
   });
 
-  /* defaults */
-  const formatRow = $("#formatDefaults");
-  setChildren(
-    formatRow,
-    ...FORMATS.map((f) =>
-      h("button", {
-        type: "button",
-        class: "pill-btn",
-        text: f.label,
-        title: f.note,
-        "aria-pressed": String(ctx.store.get().format === f.id),
-        onclick: (e) => {
-          ctx.set({ format: f.id });
-          formatRow
-            .querySelectorAll("button")
-            .forEach((b) =>
-              b.setAttribute("aria-pressed", String(b === e.currentTarget)),
-            );
-        },
-      }),
-    ),
-  );
-
-  ctx.refreshSettings = () => {
-    formatRow.querySelectorAll("button").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.textContent === labelOf(ctx.store.get().format)));
-    });
-  };
-
   $("#resetConfig").addEventListener("click", async () => {
     try {
       localStorage.removeItem("mimo_tts_config");
@@ -115,48 +88,7 @@ export function initSettings(ctx) {
   return { open, close };
 }
 
-const labelOf = (id) => FORMATS.find((f) => f.id === id)?.label || "WAV";
-
 /* ---------------------------------------------------------------- runtime -- */
-
-async function paintRuntime(ctx) {
-  const target = $("#runtimeInfo");
-  setChildren(target, h("p", { class: "note", text: "读取中…" }));
-
-  let info;
-  try {
-    info = await health();
-  } catch (e) {
-    setChildren(
-      target,
-      h("p", { class: "note err", text: `无法读取服务端状态：${e.message}` }),
-    );
-    return;
-  }
-
-  const rows = [
-    ["访问令牌", info.auth === "token" ? "已设置（fail-closed）" : "未设置 —— 所有 API 请求会被拒绝"],
-    ["上游地址", info.upstream ? "已配置" : "未配置"],
-    ["上游密钥", info.apiKey ? "已配置" : "未配置"],
-    ["模拟上游", info.mock ? "已开启（本地假上游）" : "关闭"],
-    ["历史保留", `${info.historyLimit} 条`],
-    ["单文件上限", formatBytes(info.maxAudioBytes)],
-  ];
-
-  setChildren(
-    target,
-    h(
-      "dl",
-      { class: "kv" },
-      ...rows.flatMap(([k, v]) => [
-        h("dt", { text: k }),
-        h("dd", { text: v }),
-      ]),
-    ),
-  );
-
-  paintUsage($("#usageInfo"));
-}
 
 async function paintUsage(target) {
   try {
@@ -217,60 +149,27 @@ export function createGate(ctx) {
     hide();
   }
 
+  function refreshButton(label = "刷新", primary = false) {
+    return h("div", { class: "row wrap" },
+      h("button", {
+        type: "button",
+        class: primary ? "btn primary" : "btn",
+        html: `${ic("reload")}<span>${label}</span>`,
+        onclick: () => location.reload(),
+      }),
+    );
+  }
+
   function show(kind) {
     gate.hidden = false;
 
     if (kind === "offline") {
-      setChildren(
-        body,
-        h("h1", { text: "连接不上服务端" }),
-        h("p", {
-          class: "note",
-          text: "页面加载了，但 /api/health 没有响应。如果你是本地开发，请确认 wrangler dev 还在运行。",
-        }),
-      );
+      setChildren(body, h("h1", { text: "无法连接服务端" }), refreshButton());
       return;
     }
 
     if (kind === "no-token") {
-      const cmd = "wrangler secret put CONFIG_TOKEN";
-      setChildren(
-        body,
-        h("h1", { text: "还差一步：设置访问令牌" }),
-        h("p", {
-          class: "note",
-          text:
-            "服务端没有配置 CONFIG_TOKEN，因此它拒绝了所有 API 请求。" +
-            "这是刻意设计：没有令牌时，任何人都能用你的 MIMO_API_KEY 免费合成语音。",
-        }),
-        h("ol", null, h("li", { text: "在项目目录执行下面这条命令，输入一个自定义的随机字符串：" })),
-        h("code", { class: "code", text: cmd }),
-        h(
-          "div",
-          { class: "row wrap" },
-          h("button", {
-            type: "button",
-            class: "btn",
-            html: `${ic("copy")}<span>复制命令</span>`,
-            onclick: async (e) => {
-              const ok = await copyText(cmd);
-              ctx.toast(ok ? "已复制" : "复制失败", ok ? "ok" : "err");
-              void e;
-            },
-          }),
-        ),
-        h("p", { class: "note", text: "设置完成后刷新本页。" }),
-        h(
-          "div",
-          { class: "row wrap" },
-          h("button", {
-            type: "button",
-            class: "btn primary",
-            html: `${ic("reload")}<span>刷新</span>`,
-            onclick: () => location.reload(),
-          }),
-        ),
-      );
+      setChildren(body, h("h1", { text: "服务端未配置访问令牌" }), refreshButton());
       return;
     }
 
@@ -278,7 +177,7 @@ export function createGate(ctx) {
     const input = h("input", {
       type: "password",
       id: "gateToken",
-      placeholder: "粘贴你设置的 CONFIG_TOKEN",
+      placeholder: "访问令牌",
       autocomplete: "off",
       onkeydown: (e) => {
         if (e.key === "Enter") submit();
@@ -296,18 +195,12 @@ export function createGate(ctx) {
     setChildren(
       body,
       h("h1", { text: "输入访问令牌" }),
-      h("p", {
-        class: "note",
-        text: "令牌只保存在这个浏览器里，用于调用你自己的 Worker。",
-      }),
       input,
-      h(
-        "div",
-        { class: "row wrap" },
+      h("div", { class: "row wrap" },
         h("button", {
           type: "button",
           class: "btn primary",
-          html: `${ic("lock")}<span>保存并进入</span>`,
+          html: `${ic("lock")}<span>进入</span>`,
           onclick: submit,
         }),
       ),
@@ -321,5 +214,3 @@ export function createGate(ctx) {
 
   return { check, hide };
 }
-
-export const _limits = LIMITS;

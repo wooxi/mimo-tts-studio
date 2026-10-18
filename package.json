@@ -2,7 +2,7 @@
   "name": "mimo-tts-studio",
   "version": "5.0.0",
   "private": true,
-  "description": "MiMo TTS Studio — 基于小米 MiMo-V2.5-TTS 系列的语音创作工作台，运行于 Cloudflare Workers + D1 + R2",
+  "description": "MiMo TTS Studio — MiMo 语音合成工作台（Cloudflare Workers + D1 + R2）",
   "license": "MIT",
   "type": "module",
   "scripts": {

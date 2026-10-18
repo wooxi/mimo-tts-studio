@@ -160,7 +160,7 @@ export async function start() {
   modelSeg.append(thumb);
 
   for (const m of TTS_MODELS) {
-    const b = element("button", { type: "button", textContent: m.short, title: m.desc });
+    const b = element("button", { type: "button", textContent: m.short });
     b.setAttribute("role", "tab");
     b.dataset.model = m.id;
     b.addEventListener("click", () => {
@@ -180,7 +180,6 @@ export async function start() {
       thumb.style.width = `${active.offsetWidth}px`;
       thumb.style.transform = `translateX(${active.offsetLeft}px)`;
     }
-    $("#modelDesc").textContent = modelOf(id).desc;
   }
 
   /* ═════════════════════════════════════════════════════════════ dock ═══ */

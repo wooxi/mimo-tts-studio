@@ -8,7 +8,7 @@
 
 三条原则：
 
-1. **一层一义**：界面三段（音色 / 演绎 / 台词）各自对应请求里的一个字段，视觉上也必须保持三段可分辨——所以每段有编号、标题、字段标注和独立的描述行。
+1. **一层一义**：界面三段（音色 / 演绎 / 台词）各自对应请求里的一个字段，视觉上也必须保持三段可分辨——所以每段有编号与标题。
 2. **克制用色**：强调色只出现在"当前选中""可执行的主操作""进行中的状态"三类位置。状态色（`--ok` / `--warn` / `--err`）不用于装饰。
 3. **零外部依赖**：没有字体文件、没有图标字体、没有 CDN、没有打包产物。新增任何资源前先问"能不能用现有 token 和 `icons.js` 表达"。
 
@@ -131,14 +131,14 @@
 | `> 1240px`（默认） | 双栏：编辑列 `720px`（居中）+ 输出栏 `404px` |
 | `≤ 1240px` | `--out-w: 348px`；编辑列内边距收紧为 `22px 20px 18px`；take 卡与历史行的体积信息隐藏；其余不变 |
 | `≤ 980px` | 栅格改为单列。输出栏变成底部抽屉：`fixed`、`height: 76dvh`、上圆角 `18px`、折叠态为 `translateY(calc(100% - 52px - env(safe-area-inset-bottom)))`，头部 `52px` 居中可点（显示抓手条与箭头），展开态加 `.is-open`；合成条底部内边距增为 `calc(62px + safe-area)` 以避开折叠的抽屉；标签弹层同时变为底部面板（贴底、`max-height: 78dvh`、上圆角 `18px`）；合成结束时若处于该宽度会自动展开输出栏 |
-| `≤ 560px` | 顶栏隐藏副标题；编辑列内边距 `16px 13px 12px`，合成条左右 `13px`；音色网格 `minmax(140px, 1fr)`（默认 `158px`）；合成条选项间距 `6px`，并隐藏竖分隔与选项标签 `.opt-label`，分段按钮收为 `4px 8px` / `0.72rem`；台词框最小高度 `160px`（默认 `190px`）；gate 卡内边距 `20px`（默认 `28px`） |
+| `≤ 560px` | 编辑列内边距 `16px 13px 12px`，合成条左右 `13px`；音色网格 `minmax(140px, 1fr)`（默认 `158px`）；合成条选项间距 `6px`，并隐藏竖分隔与选项标签 `.opt-label`，分段按钮收为 `4px 8px` / `0.72rem`；台词框最小高度 `160px`（默认 `190px`）；gate 卡内边距 `20px`（默认 `28px`） |
 | `≤ 430px` | 同步徽标只留状态圆点（隐藏 `#syncText`），徽标内边距收为 `3px 8px` |
 
 ## 组件清单
 
 | 组件 | 类名 | 说明与关键尺寸 |
 | --- | --- | --- |
-| 层容器 | `.layer` / `.layer-head` / `.layer-no` / `.layer-map` / `.layer-desc` / `.layer-body` | 三层（音色 / 演绎 / 台词）的骨架，层内 `gap: 12px`。标题行 `gap: 9px`：`21px` 圆形序号 `.layer-no`（`--accent-dim` 底、`--accent` 字、等宽 `0.68rem / 700`）+ `0.86rem / 660` 标题 + 右对齐的 payload 字段标注 `.layer-map`（等宽 `0.68rem`、`--ink-faint` 字、`--surface-2` 底、`999px` 圆角、`max-width: 46%`、超长省略）；标题行下方 `.layer-desc` 说明行 `0.76rem`。字段标注是三层设计的可见证据，改字段映射时必须同步 |
+| 层容器 | `.layer` / `.layer-head` / `.layer-no` / `.layer-body` | 三层（音色 / 演绎 / 台词）的骨架，层内 `gap: 12px`。标题行 `gap: 9px`：`21px` 圆形序号 `.layer-no`（`--accent-dim` 底、`--accent` 字、等宽 `0.68rem / 700`）+ `0.86rem / 660` 标题 |
 | 分段控件 | `.seg` / `.seg-thumb` | 轨道 `--surface-2` + `3px` 内边距；滑块绝对定位，宽度与位移由 JS 量取实际按钮位置后写入，`transition: transform, width var(--t)`。用于模型、输出格式、生成条数、标签分组；滑块目前只加在模型控件上，其余控件以 `aria-selected` 的底色变化表示选中 |
 | 卡片 | `.card` | 通用容器：`--surface` + `1px --border` + `--r` + `15px` 内边距 |
 | 音色卡 | `.voice-card` | 网格项 `minmax(158px, 1fr)`；选中态用 `--accent` 描边 + `--accent-veil` 底 + `inset 0 0 0 1px --accent-line`；右上角 `26px` 圆形试听按钮；试听中加 `.is-busy`（`breathe` 呼吸动画） |
@@ -147,7 +147,7 @@
 | 拖放区 | `.drop` | 最小高度 `96px`，`1.5px` 虚线 `--border-strong`；拖拽或悬停转 `--accent`；已载入样本转 `.is-set`（实线 `--ok` + `--ok-dim`） |
 | 样本卡 | `.sample` | `--surface-2` 底 + 内嵌 `30px` 高波形 canvas + 等宽时长/体积 |
 | chip | `.chip` / `.chip-row` | `999px` 圆角、`--accent-dim` 底、右侧 `16px` 圆形移除按钮；出现时 `chip-in` 动画 |
-| 药丸按钮 | `.pill-btn` | 最小高度 `28px`、虚线描边；激活 `.is-on` 转为实底 `--accent-dim`。用于整体风格、句内标签、唱歌、收藏筛选、音色设计示例、默认输出格式 |
+| 药丸按钮 | `.pill-btn` | 最小高度 `28px`、虚线描边；激活 `.is-on` 转为实底 `--accent-dim`。用于整体风格、句内标签、唱歌、收藏筛选、音色设计示例 |
 | 标签 pill | `.tag-pill` / `.tag-group` | 弹层内的可点标签；句内标签组用虚线描边区分于风格标签组 |
 | 开关 | `.toggle` / `.toggle-row` | `38×22px` 圆角轨道，滑块 `16×16px`，`translateX(16px)` 表示开启；行最小高度 `30px` |
 | 底部合成条 | `.dock` / `.synth` / `.status` / `.meter` | 主按钮高 `46px`、`--accent` 底，文字右侧跟一枚 `kbd` 快捷键提示（`⌘⏎` / `Ctrl⏎`）；合成中按钮内底部有 3px 进度条（`.fill`），并显示 `取消本次合成`；进度槽 `.meter` 高 `3px`，不确定态加 `.is-indeterminate` 用 `slide` 动画；状态行 `.status` 用 `is-ok` / `is-warn` / `is-err` 着色并配图标 |
@@ -159,9 +159,9 @@
 | 弹层 | `.sheet` / `.mask` | 标签选择器（也被音色命名对话框复用，见下一行）：头部固定，主体内滚动；遮罩 `--ink` 26% 混合，`is-open` 时接管指针事件 |
 | 命名弹层 | `.prompt` | 复用标签弹层容器做的最小文本输入对话框（`public/js/main.js` 的 `ctx.promptText`）：换掉 `.sheet-head h2` 的标题、清空 `#tagSheetTabs` 页签区，在 `.tags-body`（`12px 16px 18px` 内边距）里放入 `.prompt`（纵向 `gap: 12px`）——一个单行输入（`maxlength: 60`，`aria-label` 取标题）＋ 一行 `.row.wrap` 的「保存」`.btn.primary` 与「取消」`.btn`。`Enter` 提交、空值等同于取消，打开后 40ms 聚焦输入框；关闭走 `ctx.closeTagSheet()`，所以遮罩点击与 `Esc` 一并生效。目前只有音色库保存时用它取名 |
 | 抽屉 | `.drawer` | 设置面板，右侧滑入 `260ms`；内部 `.drawer-sec` 分节 `gap: 22px`，每节标题 `0.78rem / 650` |
-| gate 页 | `.gate` / `.gate-card` | 全屏覆盖 `z-index: 160`，卡片 `min(560px, 100%)` + `--r-lg` + `--shadow-2`；三种内容：连不上服务端 / 未设置令牌（给命令与复制按钮）/ 需要输入令牌 |
+| gate 页 | `.gate` / `.gate-card` | 全屏覆盖 `z-index: 160`，卡片 `min(560px, 100%)` + `--r-lg` + `--shadow-2`；三种内容：连不上服务端 / 服务端未配置令牌 / 需要输入令牌 |
 | toast | `.toasts` / `.toast` | 堆叠于合成条上方，`999px` 胶囊、`--ink` 底；`is-ok` / `is-err` 分别为纯色底 + 近白文字；`role="status"`，3.2s 后淡出 |
-| 空态 | `.empty` | 74×34 波形图标 + 标题 + 一行说明，垂直内边距 `58px` |
+| 空态 | `.empty` | 74×34 波形图标 + 标题，垂直内边距 `58px` |
 | 键值表 / 代码块 / 徽标 | `.kv` / `.code` / `.badge` | 设置抽屉内使用：`.kv` 为两列右对齐数值表；`.code` 为等宽命令块；`.badge` 为 `999px` 小标（同步状态用它，`is-busy` 时圆点呼吸） |
 
 图标：全部集中在 `public/js/icons.js`，24×24 网格、`stroke-width: 1.7`（个别 1.9 / 2）、`currentColor`、圆角端点；实体图标（播放、暂停、停止、实心星）用 `fill="currentColor"`。不引入图标字体或雪碧图。
@@ -239,5 +239,5 @@
 4. 动效时长用 `--t-*` token，且必须通过 `prefers-reduced-motion` 的退化路径。
 5. 新控件的触屏目标 ≥ 34px，且具备可见焦点与 `aria-label`（若为纯图标）。
 6. 新图标加进 `public/js/icons.js`（24 网格、`currentColor`、`1.7` 描边），不引外部图标资源。
-7. 改动需要图层含义（对应哪个请求字段）时，同步更新 `public/index.html` 里的 `.layer-map` 标注与根目录 `README.md` 的「界面导览」。
+7. 改动字段映射时，同步更新 `public/js/domain/payload.js`（唯一编译处）与其文件头注释、`README.md` 中的相关表格。
 8. 浏览器本地只存三个键，改名视为破坏性变更：`mimo_tts_theme`（主题偏好，首屏前由 `public/js/theme.js` 读取，运行时由 `main.js` 读写）、`mimo_tts_token`（访问令牌，`public/js/core/api.js`）、`mimo_tts_config`（配置快照，`public/js/core/persist.js`）。克隆样本等会话级状态一律不入本地存储。

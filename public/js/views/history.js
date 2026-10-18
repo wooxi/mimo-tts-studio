@@ -163,7 +163,6 @@ export function initHistory(ctx) {
             h("button", {
               type: "button",
               html: `${ic("reload")}<span>载入</span>`,
-              title: "把这条的全部参数恢复到编辑器",
               onclick: async (e) => {
                 e.stopPropagation();
                 const btn = e.currentTarget;
@@ -183,7 +182,6 @@ export function initHistory(ctx) {
               class: "del",
               html: ic("trash"),
               "aria-label": "删除",
-              title: "删除这条记录",
               onclick: async (e) => {
                 e.stopPropagation();
                 el.classList.add("is-out");

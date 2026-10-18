@@ -15,7 +15,6 @@ export const TTS_MODELS = [
     id: "mimo-v2.5-tts",
     label: "预置音色",
     short: "TTS",
-    desc: "内置精品音色，直接用；支持唱歌与真·低延迟流式。",
     voiceSource: "preset",
     caps: {
       presetVoices: true,
@@ -32,7 +31,6 @@ export const TTS_MODELS = [
     id: "mimo-v2.5-tts-voicedesign",
     label: "音色设计",
     short: "VoiceDesign",
-    desc: "用一段文字描述凭空造一个嗓音，不需要样本。",
     voiceSource: "description",
     caps: {
       presetVoices: false,
@@ -51,7 +49,6 @@ export const TTS_MODELS = [
     id: "mimo-v2.5-tts-voiceclone",
     label: "音色克隆",
     short: "VoiceClone",
-    desc: "上传一段 mp3/wav 样本，复刻这个嗓音来说任意台词。",
     voiceSource: "sample",
     caps: {
       presetVoices: false,
@@ -92,9 +89,9 @@ export const voiceOf = (id) =>
 
 /** Output container formats. `pcm` and `pcm16` are the same thing upstream. */
 export const FORMATS = [
-  { id: "wav", label: "WAV", note: "无损，体积最大" },
-  { id: "mp3", label: "MP3", note: "体积小，便于分享" },
-  { id: "pcm16", label: "PCM16", note: "裸流，24kHz 单声道" },
+  { id: "wav", label: "WAV", note: "无损" },
+  { id: "mp3", label: "MP3", note: "体积小" },
+  { id: "pcm16", label: "PCM16", note: "裸流" },
 ];
 
 /** Output is 24kHz 16-bit mono for PCM16 (documented in every official sample). */

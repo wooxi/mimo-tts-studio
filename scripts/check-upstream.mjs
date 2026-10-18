@@ -75,7 +75,7 @@ function wavInfo(buf) {
 
 const health = await (await fetch(`${BASE}/api/health`)).json();
 console.log(`real-upstream check  →  ${BASE}`);
-console.log(`mock=${health.mock}  auth=${health.auth}  apiKey=${health.apiKey}\n`);
+console.log(`mock=${health.mock}  auth=${health.auth}  ready=${health.ready}\n`);
 
 if (health.mock !== false) {
   console.error("The harness is still on the mock upstream. Start it with MIMO_MOCK=0.");

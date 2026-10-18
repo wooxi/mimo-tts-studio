@@ -93,12 +93,7 @@ function renderPresets(root, ctx) {
     grid.append(card);
   }
 
-  const note =
-    s.voice === "mimo_default"
-      ? "mimo_default 的具体嗓音取决于部署集群：中国集群为「冰糖」，其他集群为「Mia」。想固定结果请直接选一个具名音色。"
-      : "点卡片右侧的 ▶ 试听。试听结果会缓存在本页，重复点击不会重复计费。";
-
-  setChildren(root, grid, h("p", { class: "note", text: note }));
+  setChildren(root, grid);
 }
 
 async function audition(voice, ctx) {
@@ -176,8 +171,7 @@ function renderDesign(root, ctx) {
   const ta = h("textarea", {
     id: "voiceDesign",
     rows: 4,
-    placeholder:
-      "只描写这副声音本身：年龄段 + 性别、声音质感、语速节奏、情绪底色。不要写场景和动作。",
+    placeholder: "只写声音本身：年龄段 + 性别、声音质感、语速节奏、情绪底色。",
     value: s.voiceDesign,
     oninput: (e) => ctx.set({ voiceDesign: e.target.value }),
   });
@@ -217,24 +211,14 @@ function renderDesign(root, ctx) {
         }),
       ),
       ta,
-      h("p", {
-        class: "note",
-        text: "四要素：身份锚点（年龄+性别）· 声音质感 · 语速节奏 · 情绪底色。1–4 句即可，写长了反而模糊。",
-      }),
     ),
     h(
       "div",
       { class: "field" },
-      h("span", { class: "label", text: "快速开始" }),
+      h("span", { class: "label", text: "示例" }),
       examples,
     ),
     optimize,
-    h("p", {
-      class: "note",
-      text: s.optimize
-        ? "开启后，即使不写台词，模型也会根据音色描述自动生成一段合适的播报文本，并回传润色后的最终文本。"
-        : "关闭后必须自己写台词。",
-    }),
     h(
       "div",
       { class: "row wrap" },
@@ -242,12 +226,7 @@ function renderDesign(root, ctx) {
         type: "button",
         class: "btn tiny",
         html: `${ic("star")}<span>存为我的音色</span>`,
-        title: "把这个音色描述存进音色库，之后可以一键复用",
         onclick: () => ctx.library?.saveDesign(),
-      }),
-      h("span", {
-        class: "hint",
-        text: "保存的是描述本身——同一段描述每次生成的嗓音会有细微差别",
       }),
     ),
   );
@@ -290,7 +269,7 @@ function renderClone(root, ctx) {
     h("b", { text: s.cloneDataUrl ? "已载入样本" : "点击选择，或把音频拖进来" }),
     h("span", {
       class: "note",
-      text: "仅支持 mp3 / wav，Base64 编码后不超过 10MB",
+      text: "mp3 / wav · ≤ 10MB",
     }),
     input,
   );
@@ -313,7 +292,6 @@ function renderClone(root, ctx) {
           type: "button",
           class: "btn tiny",
           html: `${ic("star")}<span>存为我的音色</span>`,
-          title: "把这段参考音频存进音色库，之后可以一键复用",
           onclick: () => ctx.library?.saveClone(),
         }),
         h("button", {
@@ -349,13 +327,6 @@ function renderClone(root, ctx) {
       ),
     );
   }
-
-  parts.push(
-    h("p", {
-      class: "note",
-      text: "克隆是零样本的：样本只用于这一次请求，不会在服务端留存训练。样本越干净、越接近目标语气，复刻越准。",
-    }),
-  );
 
   setChildren(root, ...parts);
 }

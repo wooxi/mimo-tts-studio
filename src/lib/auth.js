@@ -115,7 +115,7 @@ export function guard(request, env, pathname) {
   if (!hasToken(env)) {
     return fail(
       CODES.NOT_CONFIGURED,
-      "服务端未设置 CONFIG_TOKEN，已拒绝所有请求。请执行：wrangler secret put CONFIG_TOKEN",
+      "服务端未配置访问令牌，已拒绝所有请求",
       503,
     );
   }

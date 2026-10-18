@@ -38,10 +38,6 @@ const busted = (path) => fetch(BASE + path + bust());
 
 console.log(`live check  →  ${BASE}\n`);
 
-// A local run legitimately has the mock upstream on, so that one assertion is
-// skipped rather than failed. Everything else is checked identically.
-const IS_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(BASE);
-
 /* ------------------------------------------------------------------ health */
 
 console.log("health");
@@ -52,12 +48,12 @@ try {
   health = await res.json();
   check("/api/health is reachable anonymously", res.status === 200, `status ${res.status}`);
   check("an access token is configured", health.auth === "token", `auth=${health.auth}`);
-  check("the upstream api key is present", health.apiKey === true);
-  if (IS_LOCAL) {
-    console.log(`  skip the mock upstream is off  →  local run, mock=${health.mock}`);
-  } else {
-    check("the mock upstream is off", health.mock === false, `mock=${health.mock}`);
-  }
+  check("upstream credentials are configured", health.ready === true, `ready=${health.ready}`);
+  check(
+    "health exposes no upstream configuration",
+    !("apiKey" in health) && !("upstream" in health) && !("historyLimit" in health),
+    JSON.stringify(health),
+  );
 } catch (e) {
   check("/api/health is reachable anonymously", false, e.message);
 }
@@ -99,10 +95,18 @@ check("no _headers file is shipped", stray.status === 404, `status ${stray.statu
 
 /* --------------------------------------------------------------- the build */
 
-console.log("\nthis is the v5 build");
+console.log("\nbuild markers");
 
 const html = await doc.text();
-check("the three-layer markup is present", html.includes("layer-map") && html.includes("messages · role=user"));
+const layerIds = ["layerVoice", "layerDirection", "layerScript"];
+check(
+  "the three-layer markup is present",
+  layerIds.every((id) => html.includes(`id="${id}"`)),
+);
+check(
+  "no legacy explainer markup",
+  !html.includes("layer-map") && !html.includes("modelDesc"),
+);
 check("the voice library slot is present", html.includes('id="voiceLibrary"'));
 check("the modular entry point is present", html.includes("/js/boot.js"));
 check("the pre-v4 bundle is gone", !html.includes("/css/main.css") && !html.includes("/js/tts.js"));

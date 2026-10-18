@@ -108,16 +108,17 @@ async function route(request, env, ctx, url, path) {
 
   try {
     /* --------------------------------------------------------- health -- */
+    // Anonymous by design, so it stays minimal: token state for the UI gate,
+    // plus two booleans deploy checks rely on. No endpoint, key value or
+    // limit detail is ever reported here — those live in Worker vars and
+    // secrets only.
     if (path === "/api/health") {
       return json(
         {
           ok: true,
           auth: hasToken(env) ? "token" : "unset",
-          upstream: Boolean(env.UPSTREAM_URL),
-          apiKey: Boolean(env.MIMO_API_KEY),
+          ready: Boolean(env.MIMO_API_KEY),
           mock: env.MIMO_MOCK === "1",
-          historyLimit: Number(env.HISTORY_LIMIT || 200),
-          maxAudioBytes: Number(env.MAX_AUDIO_BYTES || 26214400),
         },
         200,
         cors,

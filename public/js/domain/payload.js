@@ -197,13 +197,18 @@ export function redact(body) {
   return clone;
 }
 
-/** The same request as a copy-pasteable curl, for the inspector panel. */
-export function asCurl(body, endpoint = "https://api.xiaomimimo.com/v1/chat/completions") {
+/**
+ * The same request as a copy-pasteable curl, for the inspector panel.
+ *
+ * Endpoint and key stay as shell placeholders on purpose — both are
+ * Worker-side configuration, so the browser never carries the real values.
+ */
+export function asCurl(body) {
   const red = redact(body);
   const lines = [
-    `curl -X POST '${endpoint}' \\`,
-    `  -H 'api-key: $MIMO_API_KEY' \\`,
-    `  -H 'Content-Type: application/json' \\`,
+    `curl -X POST "$UPSTREAM_URL" \\`,
+    `  -H "api-key: $MIMO_API_KEY" \\`,
+    `  -H "Content-Type: application/json" \\`,
     `  -d '${JSON.stringify(red, null, 2)}'`,
   ];
   return lines.join("\n");

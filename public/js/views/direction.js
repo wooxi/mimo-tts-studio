@@ -58,10 +58,6 @@ function render(root, ctx, setSoft = () => {}) {
       value: s.style,
       oninput: (e) => ctx.set({ style: e.target.value }),
     }),
-    h("p", {
-      class: "note",
-      text: "模型能同时处理多层控制：整段基调、句子节奏、某个词的重音，甚至某一个字的哽咽或拖音。",
-    }),
   );
 
   const details = h(
@@ -79,9 +75,9 @@ function render(root, ctx, setSoft = () => {}) {
       h(
         "div",
         { style: { display: "grid", gap: "10px" } },
-        directorField("角色", "d-role", s.director.role, "人物的身份、性格底色、外形气质与说话习惯。", ctx),
-        directorField("场景", "d-scene", s.director.scene, "此刻发生了什么、和谁说话、情绪处在什么位置。越具体越好。", ctx),
-        directorField("指导", "d-guide", s.director.guide, "语速、气息、停顿、重音、共鸣位置、音色质感、情绪起伏。", ctx),
+        directorField("角色", "d-role", s.director.role, "身份、性格底色、说话习惯", ctx),
+        directorField("场景", "d-scene", s.director.scene, "发生了什么、对谁说、情绪状态", ctx),
+        directorField("指导", "d-guide", s.director.guide, "语速、气息、停顿、重音、音色质感", ctx),
       ),
       h(
         "div",
@@ -89,7 +85,7 @@ function render(root, ctx, setSoft = () => {}) {
         h("button", {
           type: "button",
           class: "btn tiny",
-          html: `${ic("wand")}<span>填入官方示例</span>`,
+          html: `${ic("wand")}<span>填入示例</span>`,
           onclick: () => ctx.set({ director: { ...DIRECTOR_EXAMPLE } }),
         }),
         h("button", {
@@ -100,10 +96,6 @@ function render(root, ctx, setSoft = () => {}) {
             ctx.set({ director: { role: "", scene: "", guide: "" } }),
         }),
       ),
-      h("p", {
-        class: "note",
-        text: "适合角色配音、影视级内容这类对表演要求高的场景。三个维度都留空时不会发送。",
-      }),
     ),
   );
 
@@ -129,13 +121,8 @@ function render(root, ctx, setSoft = () => {}) {
           "div",
           { class: "field-head" },
           h("span", { class: "label", text: "实际发送的音色描述" }),
-          h("span", { class: "hint", text: "上面两块合并后的结果" }),
         ),
         merged,
-        h("p", {
-          class: "note",
-          text: "音色设计模型只有一个 user 字段，所以风格描述与导演模式会拼在音色描述后面一起发送——这里是拼好之后的原文。",
-        }),
         h("button", {
           type: "button",
           class: "btn tiny",
@@ -149,14 +136,7 @@ function render(root, ctx, setSoft = () => {}) {
     return setChildren(root, ...parts);
   }
 
-  parts.push(
-    styleField,
-    details,
-    h("p", {
-      class: "note",
-      text: "这一整块会进入 messages[role=user]，「音色克隆」同样支持；只有台词会被念出来。",
-    }),
-  );
+  parts.push(styleField, details);
 
   // Delivery direction is optional, and leaving it expanded pushes the script
   // editor — the control people actually touch most — below the fold on a
@@ -183,7 +163,7 @@ function render(root, ctx, setSoft = () => {}) {
         h("span", { class: "spacer" }),
         h("span", {
           class: `hint${filled ? " is-on" : ""}`,
-          text: filled ? `已填 ${filled} 项` : "可选 · 留空则不发送",
+          text: filled ? `已填 ${filled} 项` : "可选",
         }),
       ),
       h("div", { class: "fold-body" }, ...parts),

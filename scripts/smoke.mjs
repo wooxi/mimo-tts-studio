@@ -36,7 +36,13 @@ section("health & auth");
   const j = await r.json();
   check("health reachable without a token", r.status === 200, `status ${r.status}`);
   check("health reports auth=token", j.auth === "token", JSON.stringify(j));
+  check("health reports readiness", j.ready === true);
   check("health reports mock upstream", j.mock === true);
+  check(
+    "health exposes no upstream configuration",
+    !("apiKey" in j) && !("upstream" in j) && !("historyLimit" in j) && !("maxAudioBytes" in j),
+    JSON.stringify(j),
+  );
 
   const denied = await fetch(`${BASE}/api/config`);
   check("config without a token is 401", denied.status === 401, `status ${denied.status}`);

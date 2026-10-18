@@ -23,7 +23,7 @@ function classify(status, detail) {
     case 401:
       return new HttpError(
         CODES.UPSTREAM_ERROR,
-        `上游拒绝了密钥（401）。请检查 MIMO_API_KEY 是否与 UPSTREAM_URL 所属的计费方式匹配${tail}`,
+        `上游鉴权失败（401）：服务端密钥与端点不匹配${tail}`,
         502,
       );
     case 402:
@@ -66,7 +66,7 @@ export async function callUpstream(env, body, { ctx } = {}) {
   if (!apiKey) {
     throw new HttpError(
       CODES.NOT_CONFIGURED,
-      "服务端未配置 MIMO_API_KEY。请执行：wrangler secret put MIMO_API_KEY",
+      "服务端未配置上游密钥，合成不可用",
       503,
     );
   }
