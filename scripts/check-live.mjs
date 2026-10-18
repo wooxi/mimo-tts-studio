@@ -74,6 +74,11 @@ check(
     csp.includes("https://cloudflareinsights.com"),
   csp || "(absent)",
 );
+check(
+  "the document opts out of edge transforms",
+  (doc.headers.get("cache-control") || "").includes("no-transform"),
+  doc.headers.get("cache-control") || "(absent)",
+);
 check("nosniff is set", doc.headers.get("x-content-type-options") === "nosniff");
 check("referrer policy is set", doc.headers.get("referrer-policy") === "no-referrer");
 check("framing is denied", doc.headers.get("x-frame-options") === "DENY");

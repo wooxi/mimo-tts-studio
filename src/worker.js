@@ -89,6 +89,19 @@ function harden(res) {
   if (!res) return res;
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+
+  // Cloudflare's zone-level RUM beacon is only injected into responses the
+  // edge is permitted to transform; `Cache-Control: no-transform` opts the
+  // document out (documented in the Web Analytics FAQ). Keeping the markup
+  // exactly as built also avoids a cross-origin script that would otherwise
+  // fail for visitors whose resolver cannot reach cloudflareinsights.com.
+  const type = headers.get("Content-Type") || "";
+  if (type.includes("text/html")) {
+    const cc = headers.get("Cache-Control");
+    if (!cc) headers.set("Cache-Control", "no-transform");
+    else if (!/no-transform/i.test(cc)) headers.set("Cache-Control", `${cc}, no-transform`);
+  }
+
   return new Response(res.body, {
     status: res.status,
     statusText: res.statusText,
