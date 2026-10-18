@@ -166,6 +166,101 @@ check(
   sqlite.prepare("PRAGMA table_info(history)").all().length === historyCols.length,
 );
 
+/* ------------------------------------------- the real routes, old data --- */
+
+// Column existence is not the same as "the API still works". These are the
+// actual route handlers, running their actual SQL against the migrated v4
+// database with the v4 row still in it.
+console.log("\nthe API against migrated v4 data");
+
+const { handleHistory } = await import("../src/routes/history.js");
+const { audioUrl } = await import("../src/lib/auth.js");
+
+const env = {
+  HISTORY_DB: D1,
+  AUDIO_BUCKET: {
+    async get(key) {
+      // The v4 object is still there, under whatever key the v4 row recorded.
+      if (key !== V4_ROW.audio_key) return null;
+      return {
+        body: new Uint8Array([82, 73, 70, 70]),
+        size: 4,
+        httpMetadata: { contentType: "audio/wav" },
+        range: undefined,
+      };
+    },
+    async put() {},
+    async delete() {},
+  },
+  CONFIG_TOKEN: "migration-test-token",
+  HISTORY_LIMIT: "200",
+  AUDIO_URL_TTL: "1800",
+  MAX_AUDIO_BYTES: "26214400",
+};
+const ctx = { waitUntil() {} };
+const cors = {};
+
+// `rest` is the path suffix only, exactly as the Worker computes it from
+// url.pathname — the query string travels separately.
+const call = async (method, rest = "", query = "", body) => {
+  const url = `https://studio.example/api/history${rest}${query}`;
+  const req = new Request(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleHistory(req, env, ctx, cors, new URL(url), rest);
+};
+
+let list;
+try {
+  list = await (await call("GET", "", "?limit=10")).json();
+  check("GET /api/history returns the v4 row", list.items?.some((i) => i.id === V4_ROW.id), JSON.stringify(list).slice(0, 140));
+  check("the v4 row keeps its text", list.items?.find((i) => i.id === V4_ROW.id)?.text === V4_ROW.text);
+  check("the v4 row is listed as unstarred", list.items?.find((i) => i.id === V4_ROW.id)?.starred === 0);
+  check("the filtered total counts it", list.total >= 1, `total=${list.total}`);
+  check("playback urls are minted for old rows", String(list.items?.[0]?.url || "").includes("sig="), String(list.items?.[0]?.url));
+} catch (e) {
+  check("GET /api/history returns the v4 row", false, e.message);
+}
+
+try {
+  const one = await (await call("GET", `/${V4_ROW.id}`)).json();
+  check("GET /api/history/:id reads a v4 row", one.id === V4_ROW.id, JSON.stringify(one).slice(0, 140));
+  check("its text survives the round trip", one.text === V4_ROW.text);
+  // The R2 key is deliberately not exposed; a signed url proves the server
+  // resolved the row and can still address the old object.
+  check("no r2 key is leaked to the client", one.audio_key === undefined);
+  check("a signed playback url is returned", String(one.url || "").includes("sig="), String(one.url));
+  check("its spec column reads back empty rather than throwing", one.spec === null || typeof one.spec === "object");
+} catch (e) {
+  check("GET /api/history/:id reads a v4 row", false, e.message);
+}
+
+try {
+  const patched = await (await call("PATCH", `/${V4_ROW.id}`, "", { starred: true })).json();
+  check("PATCH can star a v4 row", patched.ok === true || patched.starred === true, JSON.stringify(patched).slice(0, 120));
+  const starred = sqlite.prepare("SELECT starred FROM history WHERE id = ?").get(V4_ROW.id);
+  check("the star is persisted", starred?.starred === 1, String(starred?.starred));
+  await call("PATCH", `/${V4_ROW.id}`, "", { starred: false });
+} catch (e) {
+  check("PATCH can star a v4 row", false, e.message);
+}
+
+try {
+  const searched = await (await call("GET", "", "?q=" + encodeURIComponent("来自 v4"))).json();
+  check("search finds the v4 row by its text", searched.items?.some((i) => i.id === V4_ROW.id), JSON.stringify(searched).slice(0, 140));
+} catch (e) {
+  check("search finds the v4 row by its text", false, e.message);
+}
+
+try {
+  const url = await audioUrl(env, V4_ROW.id);
+  check("a signed playback url is minted for the old object", url.includes("/audio/") && url.includes("sig="), url);
+} catch (e) {
+  check("a signed playback url is minted for the old object", false, e.message);
+}
+
 /* -------------------------------------------------- a brand new database -- */
 
 console.log("\ncold database");
