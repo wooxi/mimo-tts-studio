@@ -21,6 +21,23 @@ database_id = "94a2599e-4345-4ac3-8e67-9b80beb46662"
 binding = "AUDIO_BUCKET"
 bucket_name = "mimo-tts-audio"
 
+# 可观测性：请求日志持久化到 Cloudflare（dashboard → Workers & Pages →
+# 本项目 → Logs 可查询；也可以用 wrangler tail 实时查看）。
+# traces 与实时 Issues 保持关闭。
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
+
+[observability.issues]
+enabled = false
+
 [vars]
 # 上游端点（按量付费 / Token Plan 二选一）：
 #   https://api.xiaomimimo.com/v1/chat/completions
