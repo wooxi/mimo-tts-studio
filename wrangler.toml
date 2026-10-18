@@ -4,16 +4,14 @@ compatibility_date = "2025-10-01"
 
 # 静态资源（public/）由 Worker 托管，不需要构建步骤。
 #
-# 安全响应头有两条下发路径，缺一不可：
-#   1. public/_headers —— 由资源层自己应用。生产环境里 public/ 实际是由资源层
-#      应答的，而且可能直接命中 Cloudflare 边缘缓存、根本不会调用 Worker；
-#      只靠 Worker 会出现在线没有 CSP 的情况。
-#   2. worker.js 的 serveAsset —— Worker 处理文档请求时再补一遍。
-# 两处保持同一套规则，任何一条路径失效都能被发现。
+# 安全响应头只能由 Worker 下发。Cloudflare 文档明确写着：_headers 文件里的规则
+# “不会应用到由 Worker 代码生成的响应”，而这里 run_worker_first = true，每个
+# 请求都进 Worker——所以 _headers 永远不会生效（实测线上 CSS/JS 一个头都没有），
+# 而且它还会被当成普通资源公开出去。规则统一放在 src/worker.js 的 harden()。
 [assets]
 directory = "./public"
 binding = "ASSETS"
-# 让 Worker 先处理每个请求：这样 /api/* 永远不会被同名静态资源抢走路由。
+# 让 Worker 先处理每个请求：/api/* 永远不会被同名静态资源抢走路由。
 run_worker_first = true
 
 # 配置 + 历史元数据 + 用量（同一 D1 库）

@@ -67,7 +67,7 @@
 | 用量统计 | 每次**到达上游**的调用落一行 `usage`（被本地校验拦下的请求不落行），设置抽屉展示近 30 天调用数、字数、音频总量、平均耗时与按模型分布 |
 | 深浅色 | auto / light / dark 三态，首屏前应用，`auto` 跟随系统 |
 | 键盘可达性 | 跳到主内容链接、统一的 `focus-visible` 描边、开关与分段控件均可用键盘操作 |
-| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'`。同一套规则写在 `public/_headers`（资源层应用）和 Worker 里（文档请求时再补一遍）——生产环境里静态资源可能直接命中边缘缓存、根本不经过 Worker，只写一处会漏 |
+| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'`。由 Worker 给**每一个**响应加上，包括 CSS/JS 与 API——因为 `run_worker_first = true` 时所有请求都进 Worker，而 Cloudflare 明确说明 `_headers` 文件的规则不会应用到 Worker 生成的响应，所以这里不能靠 `_headers` |
 | fail-closed | 未设置 `CONFIG_TOKEN` 时拒绝所有 API 请求，避免部署变成对全网开放的免费代理 |
 | 本地假上游 | `npm run dev:mock` 返回真实结构的 WAV / SSE，不发请求、不消耗额度 |
 
@@ -159,11 +159,15 @@ npm run brand            # 重新生成 brand/drafts/ 下的 logo 候选稿
 
 ```bash
 node scripts/local-harness.mjs          # http://127.0.0.1:8787，CONFIG_TOKEN=devtoken，假上游
-node scripts/smoke.mjs                  # 87 项端到端断言：鉴权、冷库迁移、Range、SSE、音色库、安全头…
+node scripts/smoke.mjs                  # 91 项端到端断言：鉴权、冷库迁移、Range、SSE、音色库、安全头…
 node scripts/check-failclosed.mjs       # 未设 CONFIG_TOKEN 时的拒绝行为（含伪造请求头回归）
+node scripts/check-migration.mjs        # 已有 v4 数据库升级到 v5 的迁移路径
+node scripts/check-live.mjs https://…   # 校验一个已部署实例：响应头、构建版本、访问控制
 ```
 
 `scripts/local-harness.mjs` 只用 `node:sqlite` 与内存对象模拟 D1 / R2，`src/` 一行不改。它不是部署目标，只是让整条链路可以在没有 workerd 的环境里被验证。
+
+`scripts/check-live.mjs` 补的是本地跑不出来的那一类问题：安全响应头到底有没有真的下发。Worker 里设了头，不等于线上就有——请求可能被资源层或边缘缓存接走，压根不进 Worker。它带缓存穿透参数请求 CSS / JS / SVG 这些非 HTML 文件，因为这些文件带没带头能直接说明是谁应答的。`npm run check:live -- https://你的域名` 即可。
 
 ## 配置项
 
@@ -189,8 +193,7 @@ node scripts/check-failclosed.mjs       # 未设 CONFIG_TOKEN 时的拒绝行为
 
 ```
 wrangler.toml          Worker 名称、静态资源绑定、D1 / R2 绑定、vars
-src/worker.js          入口：路由、静态资源托管、文档安全响应头
-public/_headers        静态资源的安全响应头（资源层应用，不经 Worker 也生效）
+src/worker.js          入口：路由、静态资源托管、给所有响应加安全头
 src/routes/            tts（合成代理）/ asr / config / history / audio / voices（音色库）
 src/lib/               auth（令牌与签名）/ db（建表与用量）/ upstream（重试与错误翻译）/ http / mock
 src/db/schema.sql      D1 权威结构，幂等，可重复执行

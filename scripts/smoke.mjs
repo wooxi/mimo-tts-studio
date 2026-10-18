@@ -361,27 +361,28 @@ section("static assets & security headers");
   check("no inline style= attribute", !/\sstyle="/i.test(html));
   check("no inline event handler", !/\son[a-z]+="/i.test(html));
 
-  // In production the asset layer answers public/ and may hit Cloudflare's edge
-  // cache without ever invoking the Worker, so the same rules have to be
-  // declared in public/_headers as well. Keep the two in step.
-  const { readFile } = await import("node:fs/promises");
-  const declared = await readFile(new URL("../public/_headers", import.meta.url), "utf8").catch(() => "");
-  check("public/_headers exists", declared.includes("/*"));
-  for (const [name, needle] of [
-    ["CSP", "Content-Security-Policy:"],
-    ["frame-ancestors", "frame-ancestors 'none'"],
-    ["connect-src blob:", "connect-src 'self' blob:"],
-    ["nosecniff", "X-Content-Type-Options: nosniff"],
-    ["referrer", "Referrer-Policy: no-referrer"],
-  ]) {
-    check(`_headers declares ${name}`, declared.includes(needle));
-  }
-  const headersAsAsset = await fetch(`${BASE}/_headers`);
-  check("_headers is not served as an asset", headersAsAsset.status === 404, `status ${headersAsAsset.status}`);
+  // The headers have to be on every response the Worker returns, not just the
+  // document. `public/_headers` cannot do this job here: Cloudflare does not
+  // apply those rules to Worker-generated responses, and with
+  // run_worker_first the Worker handles everything.
+  const api = await fetch(`${BASE}/api/health`);
+  check("api responses carry nosniff", api.headers.get("x-content-type-options") === "nosniff");
 
-  const css = await fetch(`${BASE}/css/tokens.css`);
-  check("css served with the right type", (css.headers.get("content-type") || "").includes("text/css"), css.headers.get("content-type"));
-  await css.text();
+  // Shipping a _headers file would be worse than useless: it is not applied,
+  // and with run_worker_first it would be served as a plain asset.
+  const strayHeaders = await fetch(`${BASE}/_headers`);
+  check(
+    "_headers is not shipped",
+    strayHeaders.status === 404,
+    `status ${strayHeaders.status} — it would be served and would never be applied`,
+  );
+
+  const tokens = await fetch(`${BASE}/css/tokens.css`);
+  const tokensCsp = tokens.headers.get("content-security-policy") || "";
+  check("css served with the right type", (tokens.headers.get("content-type") || "").includes("text/css"), tokens.headers.get("content-type"));
+  check("css carries the CSP too", tokensCsp.includes("default-src 'self'"), tokensCsp || "(absent)");
+  check("css is nosniff", tokens.headers.get("x-content-type-options") === "nosniff");
+  await tokens.text();
 
   const js = await fetch(`${BASE}/js/main.js`);
   check("js served with the right type", (js.headers.get("content-type") || "").includes("javascript"), js.headers.get("content-type"));

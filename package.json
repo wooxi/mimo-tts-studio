@@ -8,6 +8,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "dev:mock": "wrangler dev --var MIMO_MOCK:1",
+    "harness": "node scripts/local-harness.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "check:auth": "node scripts/check-failclosed.mjs",
+    "check:migration": "node scripts/check-migration.mjs",
+    "check:live": "node scripts/check-live.mjs",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 execute mimo-tts-db --local --file=src/db/schema.sql",
     "db:remote": "wrangler d1 execute mimo-tts-db --remote --file=src/db/schema.sql",
