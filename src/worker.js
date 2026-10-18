@@ -42,12 +42,15 @@ const SECURITY_HEADERS = {
     "img-src 'self' data:",
     "media-src 'self' blob: data:",
     "style-src 'self'",
-    "script-src 'self'",
+    // Cloudflare's zone-level RUM beacon (beacon.min.js) is injected into
+    // HTML served on proxied custom domains; allow it and its reporting
+    // endpoint so the zone's Web Analytics keeps working.
+    "script-src 'self' https://static.cloudflareinsights.com",
     // blob: is defensive rather than load-bearing: takes are decoded from
     // their Blob directly, and history playback fetches a same-origin signed
     // URL. It is kept so a future code path that reads an object URL back
     // cannot be blocked silently.
-    "connect-src 'self' blob:",
+    "connect-src 'self' blob: https://cloudflareinsights.com",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",

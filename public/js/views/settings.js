@@ -146,6 +146,19 @@ export function createGate(ctx) {
       show("need-token");
       return;
     }
+
+    // A stored token can still be wrong (stale, or the wrong secret pasted
+    // in). Probe a guarded endpoint so a bad token lands on the gate with a
+    // clear message instead of a studio where every request 401s.
+    try {
+      await get("/api/config");
+    } catch (e) {
+      if (e.status === 401) {
+        show("bad-token");
+        return;
+      }
+      /* not a token verdict — let the app surface it instead */
+    }
     hide();
   }
 
@@ -173,7 +186,8 @@ export function createGate(ctx) {
       return;
     }
 
-    // kind === "need-token": the server has one, this browser does not.
+    // kind === "need-token" | "bad-token": the server has one, this browser
+    // either lacks it or holds a rejected value.
     const input = h("input", {
       type: "password",
       id: "gateToken",
@@ -194,7 +208,7 @@ export function createGate(ctx) {
 
     setChildren(
       body,
-      h("h1", { text: "输入访问令牌" }),
+      h("h1", { text: kind === "bad-token" ? "访问令牌无效" : "输入访问令牌" }),
       input,
       h("div", { class: "row wrap" },
         h("button", {

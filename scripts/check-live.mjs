@@ -68,6 +68,12 @@ check("the document is served", doc.status === 200, `status ${doc.status}`);
 check("CSP is on the document", csp.includes("default-src 'self'"), csp || "(absent)");
 check("CSP denies framing", csp.includes("frame-ancestors 'none'"));
 check("CSP allows blob: media", csp.includes("media-src 'self' blob: data:"));
+check(
+  "CSP allows the zone RUM beacon",
+  csp.includes("https://static.cloudflareinsights.com") &&
+    csp.includes("https://cloudflareinsights.com"),
+  csp || "(absent)",
+);
 check("nosniff is set", doc.headers.get("x-content-type-options") === "nosniff");
 check("referrer policy is set", doc.headers.get("referrer-policy") === "no-referrer");
 check("framing is denied", doc.headers.get("x-frame-options") === "DENY");
