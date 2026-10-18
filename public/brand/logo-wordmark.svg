@@ -1,0 +1,17 @@
+<svg viewBox="0 0 720 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MiMo TTS Studio">
+  <title>MiMo TTS Studio</title>
+  <!-- 横向 lockup：左侧「声峰 M」标记（无底色）+ 右侧文字。
+       标记与 logo.svg / logo-mark.svg 同一几何，此处按 512 → 0.3 缩放并整体居中。
+       全部使用 currentColor：默认跟随文字颜色；
+       彩色版在外层设置 color（例如 color:#eb5e00）。 -->
+  <g transform="translate(21 0)">
+    <g transform="translate(6 2) scale(0.3)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M146 334V190" stroke-width="56"/>
+      <path d="M366 334V190" stroke-width="56"/>
+      <path d="M146 190Q200 300 256 300Q312 300 366 190" stroke-width="38"/>
+    </g>
+    <text x="152" y="100" fill="currentColor"
+          font-family="system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans SC',sans-serif"
+          font-size="58" font-weight="650" letter-spacing="-1.4">MiMo TTS Studio</text>
+  </g>
+</svg>

@@ -1,0 +1,27 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MiMo TTS Studio">
+  <title>MiMo TTS Studio</title>
+  <defs>
+    <linearGradient id="og" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f49120"/>
+      <stop offset=".52" stop-color="#eb5e00"/>
+      <stop offset="1" stop-color="#c5322b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#171310"/>
+  <g transform="translate(96 168) scale(.63)">
+    <rect width="512" height="512" rx="116" fill="url(#og)"/>
+    <g fill="none" stroke="#fffdfb" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M146 334V190" stroke-width="56"/>
+      <path d="M366 334V190" stroke-width="56"/>
+      <path d="M146 190Q200 300 256 300Q312 300 366 190" stroke-width="38"/>
+    </g>
+  </g>
+  <g font-family="system-ui,-apple-system,'Segoe UI','PingFang SC','Noto Sans SC',sans-serif" fill="#faf7f4">
+    <text x="452" y="322" font-size="82" font-weight="650" letter-spacing="-2">MiMo TTS Studio</text>
+    <text x="454" y="392" font-size="34" fill="#b9aca2">小米 MiMo 语音模型的创作工作台</text>
+    <text x="454" y="446" font-size="34" fill="#b9aca2">音色设计 · 音色克隆 · 导演模式 · 标签控制</text>
+  </g>
+  <g font-family="'SF Mono',Consolas,monospace" fill="#eb5e00">
+    <text x="454" y="530" font-size="26">Cloudflare Workers · D1 · R2</text>
+  </g>
+</svg>

@@ -1,4 +1,19 @@
-*.local
-.env
-node_modules/
+# Cloudflare / Wrangler
 .wrangler/
+.dev.vars
+.dev.vars.*
+.cf-credentials/
+
+# npm
+node_modules/
+.npm-cache/
+
+# local env
+.env
+.env.*
+*.local
+
+# editor / OS
+.DS_Store
+Thumbs.db
+*.swp

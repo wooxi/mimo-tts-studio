@@ -1,0 +1,18 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MiMo TTS Studio">
+  <title>MiMo TTS Studio</title>
+  <defs>
+    <linearGradient id="f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f49120"/>
+      <stop offset=".52" stop-color="#eb5e00"/>
+      <stop offset="1" stop-color="#c5322b"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#f)"/>
+  <!-- Strokes are proportionally heavier than the master mark so the M
+       survives a 16px raster. -->
+  <g fill="none" stroke="#fffdfb" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M70 170V90" stroke-width="34"/>
+    <path d="M186 170V90" stroke-width="34"/>
+    <path d="M70 90Q99 152 128 152Q157 152 186 90" stroke-width="24"/>
+  </g>
+</svg>

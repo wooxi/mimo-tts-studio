@@ -1,0 +1,16 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MiMo TTS Studio">
+  <title>MiMo TTS Studio</title>
+  <defs>
+    <linearGradient id="mimoA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f49120"/>
+      <stop offset=".52" stop-color="#eb5e00"/>
+      <stop offset="1" stop-color="#c5322b"/>
+    </linearGradient>
+  </defs>
+  <rect x="13" y="13" width="486" height="486" rx="104" fill="none" stroke="currentColor" stroke-width="26"/>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M146 334V190" stroke-width="56"/>
+    <path d="M366 334V190" stroke-width="56"/>
+    <path d="M146 190Q200 300 256 300Q312 300 366 190" stroke-width="38"/>
+  </g>
+</svg>

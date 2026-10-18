@@ -1,13 +1,19 @@
 {
   "name": "mimo-tts-studio",
-  "version": "1.2.0",
+  "version": "5.0.0",
   "private": true,
-  "description": "MiMo TTS Studio — Cloudflare Worker + D1 + R2 语音合成工作台",
+  "description": "MiMo TTS Studio — 基于小米 MiMo-V2.5-TTS 系列的语音创作工作台，运行于 Cloudflare Workers + D1 + R2",
+  "license": "MIT",
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev:mock": "wrangler dev --var MIMO_MOCK:1",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute mimo-tts-db --local --file=src/db/schema.sql",
+    "db:remote": "wrangler d1 execute mimo-tts-db --remote --file=src/db/schema.sql",
+    "brand": "node scripts/gen-logos.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.42.0"
   }
 }

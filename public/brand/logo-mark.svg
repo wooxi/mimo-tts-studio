@@ -1,0 +1,8 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MiMo TTS Studio">
+  <title>MiMo TTS Studio</title>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M146 334V190" stroke-width="56"/>
+    <path d="M366 334V190" stroke-width="56"/>
+    <path d="M146 190Q200 300 256 300Q312 300 366 190" stroke-width="38"/>
+  </g>
+</svg>

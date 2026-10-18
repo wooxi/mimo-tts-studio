@@ -1,470 +1,705 @@
-/** 入口：装配顶栏 / 创作区 / 输出区 / 设置抽屉，启动合成与配置恢复 */
+/**
+ * Wiring.
+ *
+ * Owns the store and hands the views one `ctx` object. Views never reach for
+ * globals; everything that causes a change goes through here, which keeps the
+ * render graph readable without a framework.
+ *
+ * Two refresh levels:
+ *   refresh()     rebuilds the layer panels — used when the shape changes
+ *                 (switching model, loading history parameters)
+ *   refreshSoft() cheap in-place updates — used on every keystroke
+ */
 
-import {
-  state,
-  MODELS,
-  PRESET_VOICES,
-  scheduleSave,
-  restoreConfig,
-} from "./store.js";
-import { apiJson } from "./api.js";
-import {
-  buildBody,
-  validate,
-  synthesize,
-  synthesizeStream,
-  fileToVoiceData,
-} from "./tts.js";
-import { initTags, renderChips } from "./ui/tags.js";
-import { initOutput, showResult } from "./ui/output.js";
-import { initSettings, syncBadge, updateStreamNote } from "./ui/settings.js";
+import { $, setChildren, formatClock } from "./core/dom.js";
+import { createStore } from "./core/state.js";
+import { createPersistence } from "./core/persist.js";
+import { auth, get } from "./core/api.js";
+import { ic } from "./icons.js";
 
-const $ = (id) => document.getElementById(id);
+import { TTS_MODELS, modelOf, FORMATS, SAMPLE_RATE } from "./domain/models.js";
+import { removeLeadingTag } from "./domain/tags.js";
 
-// ---------- 主题（跟随系统 / 浅 / 深 三态循环） ----------
-const themeBtn = $("themeToggle");
-const THEME_ORDER = ["auto", "light", "dark"];
+import { initVoice, acceptClone } from "./views/voice.js";
+import { initLibrary } from "./views/library.js";
+import { initDirection } from "./views/direction.js";
+import { initScript } from "./views/script.js";
+import { initInspector } from "./views/inspector.js";
+import { initTagSheet } from "./views/tagsheet.js";
+import { initTakes } from "./views/takes.js";
+import { createPlayer } from "./views/player.js";
+import { initHistory } from "./views/history.js";
+import { initSettings, createGate } from "./views/settings.js";
+import { toast } from "./views/toast.js";
+import { createSynth } from "./synth.js";
+
+const THEMES = ["auto", "light", "dark"];
 const THEME_LABEL = { auto: "跟随系统", light: "浅色", dark: "深色" };
+const SYNC_LABEL = {
+  ok: "已同步",
+  pending: "同步中",
+  local: "本地",
+  err: "同步失败",
+  off: "仅本地",
+};
 
-function currentThemePref() {
-  return localStorage.getItem("mimo_tts_theme") || "auto";
-}
+const element = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
-function applyThemePref(pref) {
-  if (pref === "auto") {
-    document.documentElement.removeAttribute("data-theme");
-  } else {
-    document.documentElement.setAttribute("data-theme", pref);
-  }
-  localStorage.setItem("mimo_tts_theme", pref);
-  themeBtn.dataset.pref = pref;
-  themeBtn.title = `主题：${THEME_LABEL[pref]}`;
-  window.dispatchEvent(new CustomEvent("themechange"));
-}
+export async function start() {
+  /* ══════════════════════════════════════════════════════════════ store ══ */
 
-themeBtn.dataset.pref = currentThemePref();
-themeBtn.addEventListener("click", () => {
-  const next =
-    THEME_ORDER[(THEME_ORDER.indexOf(currentThemePref()) + 1) % THEME_ORDER.length];
-  applyThemePref(next);
-});
+  const store = createStore({
+    model: "mimo-v2.5-tts",
+    voice: "mimo_default",
+    voiceDesign: "",
+    style: "",
+    director: { role: "", scene: "", guide: "" },
+    text: "",
+    format: "wav",
+    stream: false,
+    takes: 1,
+    optimize: true,
+    autoSplit: false,
+    showErrors: false,
 
-// ---------- 模型切换（分段滑块） ----------
-const modelTabs = $("modelTabs");
-const segThumb = modelTabs.querySelector(".seg-thumb");
-
-function positionThumb() {
-  const active = modelTabs.querySelector("button.active");
-  if (!active || !segThumb) return;
-  segThumb.style.width = `${active.offsetWidth}px`;
-  segThumb.style.transform = `translateX(${active.offsetLeft}px)`;
-}
-
-for (const [id, info] of Object.entries(MODELS)) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.textContent = info.label;
-  b.setAttribute("role", "tab");
-  b.dataset.model = id;
-  b.addEventListener("click", () => {
-    if (state.model === id) return;
-    state.model = id;
-    renderModelTabs();
-    renderModelCard();
-    if (!MODELS[id].supportsStream && state.stream) state.stream = false;
-    updateStreamNote();
-    scheduleSave(syncBadge);
+    /* session-only, never persisted: up to 10MB of base64 */
+    cloneDataUrl: "",
+    cloneName: "",
+    cloneSize: 0,
+    cloneDuration: 0,
+    clonePeaks: null,
+    cloneFile: null,
+    cloneFileName: "",
   });
-  modelTabs.appendChild(b);
-}
 
-function renderModelTabs() {
-  modelTabs.querySelectorAll("button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.model === state.model);
-    b.setAttribute("aria-selected", b.dataset.model === state.model);
-  });
-  positionThumb();
-}
+  const onRefresh = [];
+  const onSoftRefresh = [];
+  const keyHandlers = [];
 
-// ---------- 模型专属卡片 ----------
-const modelCard = $("modelCard");
-function renderModelCard() {
-  modelCard.textContent = "";
-  const info = MODELS[state.model];
-  $("modelDesc").textContent = info.desc;
+  let persistence = null; // assigned once the views are mounted
 
-  if (info.presetVoices) {
-    const label = document.createElement("div");
-    label.className = "field-label";
-    label.textContent = "预置音色";
-    const select = document.createElement("select");
-    select.id = "voiceSelect";
-    PRESET_VOICES.forEach((v) => {
-      const opt = document.createElement("option");
-      opt.value = v.id;
-      opt.textContent = `${v.label} (${v.lang})`;
-      if (v.id === state.voice) opt.selected = true;
-      select.appendChild(opt);
-    });
-    select.addEventListener("change", () => {
-      state.voice = select.value;
-      scheduleSave(syncBadge);
-    });
-    modelCard.append(label, select);
+  const ctx = {
+    store,
+    onRefresh,
+    onSoftRefresh,
+    toast,
 
-    // 唱歌模式
-    modelCard.appendChild(
-      toggleRow("唱歌模式", "singingToggle", state.singing, (on) => {
-        state.singing = on;
-        scheduleSave(syncBadge);
-      }),
-    );
-    const note = document.createElement("p");
-    note.className = "note";
-    note.textContent = "开启后在文本开头自动拼接 (唱歌) 标签";
-    modelCard.appendChild(note);
-  }
+    registerKeys(fn) {
+      keyHandlers.push(fn);
+    },
 
-  if (state.model === "mimo-v2.5-tts-voicedesign") {
-    const label = document.createElement("div");
-    label.className = "field-label";
-    label.textContent = "音色描述";
-    const ta = document.createElement("textarea");
-    ta.id = "voiceDesignInput";
-    ta.rows = 3;
-    ta.placeholder =
-      "Young female, warm and gentle voice, like a close friend whispering a bedtime story.";
-    ta.value = state.voiceDesign;
-    ta.addEventListener("input", () => {
-      state.voiceDesign = ta.value;
-      scheduleSave(syncBadge);
-    });
-    modelCard.append(label, ta);
+    set(patch, { silent = false } = {}) {
+      store.set(patch, { silent: true });
+      if (!silent) persistence?.schedule();
+      if (patch.model) refresh();
+      else refreshSoft();
+    },
 
-    modelCard.appendChild(
-      toggleRow("优化文本预览", "optimizeToggle", state.optimize, (on) => {
-        state.optimize = on;
-        scheduleSave(syncBadge);
-      }),
-    );
-    const note = document.createElement("p");
-    note.className = "note";
-    note.textContent = "智能润色目标播报文本，开启后可省略合成文本";
-    modelCard.appendChild(note);
-  }
+    refresh() {
+      for (const fn of onRefresh) fn();
+      refreshSoft();
+    },
 
-  if (state.model === "mimo-v2.5-tts-voiceclone") {
-    const label = document.createElement("div");
-    label.className = "field-label";
-    label.textContent = "音频样本";
-    const upload = document.createElement("div");
-    upload.className = "file-upload";
-    upload.innerHTML = `
-      <span data-role="txt">点击或拖拽上传 MP3/WAV 样本</span>
-      <input type="file" accept=".mp3,.wav,audio/mpeg,audio/wav" aria-label="上传音频样本">`;
-    const nameEl = document.createElement("p");
-    nameEl.className = "note";
-    const input = upload.querySelector("input");
-    input.addEventListener("change", () => {
-      const f = input.files[0];
-      state.cloneFile = f || null;
-      upload.style.borderColor = f ? "var(--ok)" : "";
-      nameEl.textContent = f
-        ? `已选择：${f.name}（${(f.size / 1024 / 1024).toFixed(1)} MB · Base64 后不超过 10MB）`
-        : "";
-    });
-    ["dragover", "dragleave", "drop"].forEach((ev) => {
-      upload.addEventListener(ev, (e) => {
-        e.preventDefault();
-        upload.classList.toggle("drag", ev === "dragover");
-        if (ev === "drop") {
-          const f = e.dataTransfer?.files?.[0];
-          if (f) {
-            const dt = new DataTransfer();
-            dt.items.add(f);
-            input.files = dt.files;
-            input.dispatchEvent(new Event("change"));
-          }
-        }
-      });
-    });
-    modelCard.append(label, upload, nameEl);
-  }
-}
+    refreshSoft() {
+      for (const fn of onSoftRefresh) fn();
+    },
 
-function toggleRow(text, id, checked, onChange) {
-  const row = document.createElement("div");
-  row.className = "toggle-row";
-  const lbl = document.createElement("span");
-  lbl.className = "lbl";
-  lbl.textContent = text;
-  const t = document.createElement("div");
-  t.className = "toggle" + (checked ? " active" : "");
-  t.id = id;
-  t.setAttribute("role", "switch");
-  t.setAttribute("aria-checked", String(!!checked));
-  t.tabIndex = 0;
-  const flip = () => {
-    const on = !t.classList.contains("active");
-    t.classList.toggle("active", on);
-    t.setAttribute("aria-checked", String(on));
-    onChange(on);
+    /* bound below */
+    requestSynth: () => {},
+    cancelSynth: () => {},
+    openTagSheet: () => {},
+    closeTagSheet: () => {},
+    syncTagSheet: () => {},
+    loadParams: () => {},
+    pickFromHistory: () => {},
+    acceptCloneFile: () => {},
+    onLangChange: () => {},
+    player: null,
+    history: null,
   };
-  t.addEventListener("click", flip);
-  t.addEventListener("keydown", (e) => {
+
+  const refresh = () => ctx.refresh();
+  const refreshSoft = () => ctx.refreshSoft();
+
+  /* ═══════════════════════════════════════════════════════════════ theme ══ */
+
+  const themeBtn = $("#themeBtn");
+  const currentTheme = () => {
+    try {
+      return localStorage.getItem("mimo_tts_theme") || "auto";
+    } catch {
+      return "auto";
+    }
+  };
+
+  function applyTheme(pref) {
+    if (pref === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", pref);
+    try {
+      localStorage.setItem("mimo_tts_theme", pref);
+    } catch {
+      /* ignore */
+    }
+    themeBtn.dataset.pref = pref;
+    themeBtn.title = `主题：${THEME_LABEL[pref]}`;
+    window.dispatchEvent(new CustomEvent("themechange"));
+  }
+
+  themeBtn.dataset.pref = currentTheme();
+  themeBtn.title = `主题：${THEME_LABEL[currentTheme()]}`;
+  themeBtn.addEventListener("click", () => {
+    const next = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+    applyTheme(next);
+    toast(`主题：${THEME_LABEL[next]}`);
+  });
+
+  /* ══════════════════════════════════════════════════════════ model tabs ══ */
+
+  const modelSeg = $("#modelSeg");
+  const thumb = element("span", { className: "seg-thumb" });
+  modelSeg.append(thumb);
+
+  for (const m of TTS_MODELS) {
+    const b = element("button", { type: "button", textContent: m.short, title: m.desc });
+    b.setAttribute("role", "tab");
+    b.dataset.model = m.id;
+    b.addEventListener("click", () => {
+      if (store.get().model === m.id) return;
+      ctx.set({ model: m.id });
+    });
+    modelSeg.append(b);
+  }
+
+  function paintModelSeg() {
+    const id = store.get().model;
+    const buttons = [...modelSeg.querySelectorAll("button")];
+    buttons.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.model === id)));
+
+    const active = buttons.find((b) => b.dataset.model === id);
+    if (active?.offsetWidth) {
+      thumb.style.width = `${active.offsetWidth}px`;
+      thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+    }
+    $("#modelDesc").textContent = modelOf(id).desc;
+  }
+
+  /* ═════════════════════════════════════════════════════════════ dock ═══ */
+
+  const formatSeg = $("#formatSeg");
+  for (const f of FORMATS) {
+    const b = element("button", { type: "button", textContent: f.label, title: f.note });
+    b.dataset.format = f.id;
+    b.addEventListener("click", () => ctx.set({ format: f.id }));
+    formatSeg.append(b);
+  }
+
+  const takesSeg = $("#takesSeg");
+  for (const n of [1, 2, 3]) {
+    const b = element("button", {
+      type: "button",
+      textContent: String(n),
+      title: n === 1 ? "生成 1 条" : `同时生成 ${n} 条择优`,
+    });
+    b.dataset.takes = String(n);
+    b.addEventListener("click", () => ctx.set({ takes: n }));
+    takesSeg.append(b);
+  }
+
+  const streamToggle = $("#streamToggle");
+  const flipStream = () => {
+    const on = streamToggle.getAttribute("aria-checked") !== "true";
+    const s = store.get();
+    ctx.set({ stream: on, format: on ? "pcm16" : s.format === "pcm16" ? "wav" : s.format });
+  };
+  streamToggle.addEventListener("click", flipStream);
+  streamToggle.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      flip();
+      flipStream();
     }
   });
-  row.append(lbl, t);
-  return row;
-}
 
-// ---------- 标签 ----------
-initTags($("tagsPanel"), state, {
-  onStyleTag(tag, on) {
-    if (on) state.styleTags.add(tag);
-    else state.styleTags.delete(tag);
-    renderChipsFromState();
-    scheduleSave(syncBadge);
-  },
-  onAudioTag(tag) {
-    const ta = $("textInput");
-    const start = ta.selectionStart ?? ta.value.length;
-    const end = ta.selectionEnd ?? start;
-    const insert = `[${tag}]`;
-    ta.value = ta.value.slice(0, start) + insert + ta.value.slice(end);
-    const pos = start + insert.length;
-    ta.setSelectionRange(pos, pos);
-    ta.focus();
-    state.text = ta.value;
-    updateCharCount();
-    scheduleSave(syncBadge);
-  },
-});
-
-function syncTagPills() {
-  document.querySelectorAll("#tagsPanel .tag-pill").forEach((pill) => {
-    pill.classList.toggle("active", state.styleTags.has(pill.textContent));
-  });
-  const btn = $("addStyleBtn");
-  if (btn) {
-    const n = state.styleTags.size;
-    btn.querySelector("span").textContent = n ? `风格 · ${n}` : "风格";
-    btn.classList.toggle("has-tags", n > 0);
-  }
-}
-const removeChip = (tag) => {
-  state.styleTags.delete(tag);
-  renderChipsFromState();
-  scheduleSave(syncBadge);
-};
-
-function renderChipsFromState() {
-  renderChips($("chipRow"), state, removeChip);
-  syncTagPills();
-}
-
-// ---------- 输入绑定 ----------
-const textInput = $("textInput");
-function updateCharCount() {
-  $("charCount").textContent = textInput.value
-    ? `${textInput.value.length} 字`
-    : "";
-}
-textInput.addEventListener("input", () => {
-  state.text = textInput.value;
-  updateCharCount();
-  scheduleSave(syncBadge);
-});
-$("styleInput").addEventListener("input", () => {
-  state.style = $("styleInput").value;
-  scheduleSave(syncBadge);
-});
-["directorRole", "directorScene", "directorGuide"].forEach((id, i) => {
-  $(id).addEventListener("input", () => {
-    state.director[["role", "scene", "guide"][i]] = $(id).value;
-    scheduleSave(syncBadge);
-  });
-});
-
-textInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-    e.preventDefault();
-    doSynthesize();
-  }
-});
-
-// ---------- 风格标签面板（popover / 底部 sheet） ----------
-const tagPopover = $("tagPopover");
-const tagMask = $("tagMask");
-const openTagsPanel = () => {
-  tagPopover.classList.add("open");
-  tagMask.classList.add("open");
-};
-const closeTagsPanel = () => {
-  tagPopover.classList.remove("open");
-  tagMask.classList.remove("open");
-};
-$("addStyleBtn").addEventListener("click", openTagsPanel);
-$("tagClose").addEventListener("click", closeTagsPanel);
-tagMask.addEventListener("click", closeTagsPanel);
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeTagsPanel();
-});
-
-// 移动端输出抽屉把手
-$("outputHead").addEventListener("click", () => {
-  if (window.matchMedia("(max-width: 820px)").matches) {
-    $("paneOutput").classList.toggle("open");
-  }
-});
-
-// ---------- 合成 ----------
-const synthBtn = $("synthesizeBtn");
-const synthLabel = $("synthLabel");
-let busy = false;
-
-async function doSynthesize() {
-  if (busy) return;
-  const err = validate();
-  if (err) {
-    setStatus(err, "err");
-    return;
-  }
-
-  busy = true;
-  synthBtn.disabled = true;
-  synthBtn.classList.add("busy");
-  synthLabel.textContent = "合成中";
-  setStatus("", "");
-
-  const body = buildBody();
-
-  try {
-    if (state.model === "mimo-v2.5-tts-voiceclone") {
-      body.audio.voice = await fileToVoiceData(state.cloneFile);
-    }
-
-    let result;
-    if (state.stream) {
-      $("progressArea").hidden = false;
-      result = await synthesizeStream(body, (bytes) => {
-        $("progressText").textContent =
-          `接收中… ${(bytes / 1024).toFixed(1)} KB`;
-      });
-      $("progressArea").hidden = true;
-    } else {
-      result = await synthesize(body);
-    }
-
-    await showResult(result.blob, {
-      model: state.model,
-      voice: state.model === "mimo-v2.5-tts" ? state.voice : "",
-      format: "wav",
-      style: state.style,
-      text: state.text,
-      duration: result.duration,
+  function paintDock() {
+    const s = store.get();
+    // Segmentation and streaming both force PCM16 and then wrap the result as
+    // WAV, so the container choice is not the user's to make in those modes.
+    // Leaving the buttons live let the UI claim MP3 while producing WAV.
+    const formatLocked = s.stream || s.autoSplit;
+    formatSeg.querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-selected", String(b.dataset.format === s.format));
+      b.disabled = formatLocked;
     });
-    setStatus("合成完成", "ok");
-  } catch (e) {
-    $("progressArea").hidden = true;
-    if (e.name === "AbortError") return;
-    setStatus("合成失败: " + e.message, "err");
-    console.error(e);
-  } finally {
-    busy = false;
-    synthBtn.disabled = false;
-    synthBtn.classList.remove("busy");
-    synthLabel.textContent = "合成";
+    formatSeg.title = s.autoSplit
+      ? "自动分段会拼接为 WAV，格式不可选"
+      : s.stream
+        ? "流式固定输出 PCM16，并在浏览器里封装为 WAV"
+        : "";
+    takesSeg.querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-selected", String(Number(b.dataset.takes) === s.takes));
+    });
+    streamToggle.setAttribute("aria-checked", String(Boolean(s.stream)));
+    streamToggle.title = s.stream
+      ? modelOf(s.model).caps.realtimeStream
+        ? "流式输出：实时接收 PCM16 音频块"
+        : "该模型没有真·低延迟流式，开流式只会拿到一次性结果"
+      : "非流式：完成后返回完整文件";
   }
+
+  /* ═════════════════════════════════════════════════════════════ views ══ */
+
+  const player = createPlayer(ctx);
+  ctx.player = player;
+  ctx.acceptCloneFile = (file) => acceptClone(file, ctx);
+
+  const takes = initTakes(ctx);
+  const history = initHistory(ctx);
+  ctx.history = history;
+
+  // Bound before initVoice so the panel's save buttons can reach it.
+  ctx.library = null;
+
+  initVoice(ctx);
+  initDirection(ctx);
+  initScript(ctx);
+  initInspector(ctx);
+  initTagSheet(ctx);
+  initSettings(ctx);
+
+  ctx.library = initLibrary(ctx);
+
+  onRefresh.push(paintModelSeg, paintDock);
+  onSoftRefresh.push(paintDock);
+
+  // Style-chip removal lives here because the chip row belongs to the script
+  // panel but the intent is global, and the transform itself is a domain rule.
+  ctx.removeStyleTag = (tag) => {
+    ctx.set({ text: removeLeadingTag(store.get().text, tag) });
+    ctx.syncTagSheet?.();
+  };
+
+  /* ═════════════════════════════════════════════════════════════ synth ══ */
+
+  const synthBtn = $("#synthBtn");
+  const synthLabel = $("#synthLabel");
+  const synthFill = $("#synthFill");
+  const cancelBtn = $("#cancelBtn");
+  const statusEl = $("#statusArea");
+  const progressBar = $("#progressBar");
+  const progressFill = $("#progressFill");
+
+  const synth = createSynth({ getState: () => store.get(), on: handleSynthEvent });
+  let lastFinalText = null;
+
+  synthBtn.addEventListener("click", () => ctx.requestSynth());
+  cancelBtn.addEventListener("click", () => ctx.cancelSynth());
+
+  ctx.requestSynth = () => {
+    if (synth.running) return;
+    takes.reset();
+    lastFinalText = null;
+    renderPreview();
+    setStatus("");
+    synth.run();
+  };
+
+  ctx.cancelSynth = () => {
+    synth.cancel();
+  };
+
+  function setStatus(message, kind = "", detail = "") {
+    statusEl.className = `status ${kind}`;
+    setChildren(statusEl);
+    if (!message) return;
+
+    const iconName = kind === "is-err" ? "alert" : kind === "is-ok" ? "check" : null;
+    if (iconName) {
+      const wrap = element("span");
+      wrap.innerHTML = ic(iconName);
+      statusEl.append(wrap.firstElementChild || wrap);
+    }
+
+    const text =
+      detail && store.get().showErrors ? `${message} — ${detail}` : message;
+    statusEl.append(document.createTextNode(text));
+  }
+
+  function handleSynthEvent(event) {
+    switch (event.type) {
+      case "invalid":
+        setStatus(event.problems[0], "is-err");
+        toast(event.problems[0], "err", 4200);
+        return;
+
+      case "notice":
+        toast(event.message);
+        return;
+
+      case "start":
+        synthBtn.disabled = true;
+        cancelBtn.hidden = false;
+        synthLabel.textContent = event.takes > 1 ? `合成中 · ${event.takes} 条` : "合成中";
+        progressBar.hidden = false;
+        progressBar.classList.toggle("is-indeterminate", event.segments <= 1);
+        progressFill.style.width = "0";
+        setStatus(
+          event.segments > 1
+            ? `分 ${event.segments} 段合成中…`
+            : event.takes > 1
+              ? `生成 ${event.takes} 条中…`
+              : "合成中…",
+        );
+        return;
+
+      case "progress": {
+        // A single segment has no knowable length, so the bar stays
+        // indeterminate rather than sitting at a fake 0%. Segment count is
+        // real progress and is shown as such.
+        if (event.segments > 1) {
+          progressBar.classList.remove("is-indeterminate");
+          progressFill.style.width = `${(event.segIndex / event.segments) * 100}%`;
+        }
+        const bits = [event.label];
+        if (event.seconds) bits.push(`${event.seconds.toFixed(1)}s`);
+        if (event.bytes) bits.push(`${(event.bytes / 1024).toFixed(0)} KB`);
+        setStatus(bits.join(" · "));
+        return;
+      }
+
+      case "take-done": {
+        const r = event.result;
+        takes.push(r);
+        if (r.finalText) lastFinalText = r.finalText;
+
+        const stored = takes.all.find((t) => t.index === r.index);
+        player.load(
+          {
+            url: r.url,
+            blob: r.blob,
+            format: r.format,
+            duration:
+              stored?.duration || (r.pcm ? r.pcm.length / 2 / SAMPLE_RATE : 0),
+            size: r.size,
+            historyId: r.historyId,
+          },
+          { autoplay: store.get().takes === 1 },
+        );
+        setStatus(`第 ${r.index + 1} 条完成`, "is-ok");
+        return;
+      }
+
+      case "done": {
+        synthBtn.disabled = false;
+        cancelBtn.hidden = true;
+        synthLabel.textContent = "合成";
+        progressBar.hidden = true;
+        progressFill.style.width = "0";
+
+        if (event.cancelled) setStatus("已取消", "is-warn");
+        else if (event.results.length) {
+          setStatus(
+            `${event.results.length} 条完成 · ${(event.ms / 1000).toFixed(1)}s`,
+            "is-ok",
+          );
+        }
+
+        renderPreview();
+        history.reload();
+        openOutputOnNarrow();
+        return;
+      }
+
+      case "error": {
+        synthBtn.disabled = false;
+        cancelBtn.hidden = true;
+        synthLabel.textContent = "合成";
+        progressBar.hidden = true;
+
+        const err = event.error;
+        const message = err?.message || "合成失败";
+        setStatus(message, "is-err", err?.code || "");
+        toast(message, "err", 5200);
+        if (event.results.length) history.reload();
+        return;
+      }
+
+      default:
+    }
+  }
+
+  /* --------------------------------------- VoiceDesign preview script -- */
+
+  function renderPreview() {
+    const slot = $("#previewSlot");
+    if (!slot) return;
+
+    if (!modelOf(store.get().model).caps.optimizeText || !lastFinalText) {
+      setChildren(slot);
+      return;
+    }
+
+    const head = element("div", { className: "field-head" });
+    head.append(
+      element("span", { className: "label", textContent: "润色后的播报文本" }),
+      element("span", { className: "hint", textContent: "模型实际朗读的内容" }),
+    );
+
+    const use = element("button", {
+      type: "button",
+      className: "btn tiny",
+      textContent: "用这段文本替换台词",
+    });
+    use.addEventListener("click", () => {
+      ctx.set({ text: lastFinalText });
+      toast("已替换台词", "ok");
+    });
+
+    const row = element("div", { className: "row wrap" });
+    row.append(use);
+
+    const box = element("div", { className: "field" });
+    box.append(
+      head,
+      element("p", { className: "note", textContent: lastFinalText }),
+      row,
+    );
+
+    setChildren(slot, element("hr", { className: "divider" }), box);
+  }
+
+  /* ═══════════════════════════════════════════════════════ history glue ══ */
+
+  ctx.loadParams = (full, listItem = {}) => {
+    const spec = full?.spec || {};
+    const patch = {
+      model: spec.model || full?.model || listItem.model || store.get().model,
+      text: full?.text ?? listItem.text ?? "",
+    };
+
+    // Only overwrite when the record actually carried a value: design and
+    // clone takes store `voice: ""`, and writing that back would silently
+    // reset the user's chosen preset voice.
+    if (typeof spec.voice === "string" && spec.voice) patch.voice = spec.voice;
+    if (typeof spec.voiceDesign === "string") patch.voiceDesign = spec.voiceDesign;
+    if (typeof spec.style === "string") patch.style = spec.style;
+    else if (typeof full?.style === "string") patch.style = full.style;
+    if (spec.director) patch.director = { ...spec.director };
+    if (typeof spec.optimize === "boolean") patch.optimize = spec.optimize;
+    if (typeof spec.autoSplit === "boolean") patch.autoSplit = spec.autoSplit;
+    if (spec.format && FORMATS.some((f) => f.id === spec.format)) patch.format = spec.format;
+    if (spec.cloneName) patch.cloneName = spec.cloneName;
+
+    store.set(patch, { silent: true });
+    persistence?.schedule();
+    refresh();
+
+    if (spec.truncated) {
+      toast("这条参数过多，风格与导演描述未能完整保存", "err", 4200);
+    } else if (spec.cloneName) {
+      toast(`参数已载入；克隆样本「${spec.cloneName}」需要重新上传`, "ok", 4200);
+    } else if (spec.model) {
+      toast("参数已载入", "ok");
+    } else {
+      toast("参数已载入（这条较早，部分字段无法还原）", "ok");
+    }
+    setStatus("已载入历史参数，可重新编辑合成", "is-ok");
+
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      $("#output").classList.remove("is-open");
+    }
+  };
+
+  /** Reuse the tag sheet as a picker for "clone from a past take". */
+  ctx.pickFromHistory = async () => {
+    const sheet = $("#tagSheet");
+    const body = $("#tagSheetBody");
+    const tabs = $("#tagSheetTabs");
+    $("#tagSheetTitle").textContent = "从历史音频选择";
+
+    setChildren(tabs);
+    setChildren(body, element("p", { className: "note", textContent: "读取中…" }));
+    sheet.classList.add("is-open");
+    $("#mask").classList.add("is-open");
+    document.body.classList.add("is-locked");
+
+    try {
+      const data = await get("/api/history?limit=30");
+      const items = (data?.items || []).filter((x) => /^(wav|mp3)$/i.test(x.format || "wav"));
+
+      if (!items.length) {
+        setChildren(
+          body,
+          element("p", { className: "note", textContent: "还没有可用的历史音频。" }),
+        );
+        return;
+      }
+
+      setChildren(
+        body,
+        ...items.map((item) => {
+          const b = element("button", {
+            type: "button",
+            className: "tag-pill",
+            textContent: `${(item.text || "").replace(/\s+/g, " ").slice(0, 20)} · ${formatClock(item.duration)}`,
+            title: item.text || "",
+          });
+          b.addEventListener("click", async () => {
+            ctx.closeTagSheet();
+            try {
+              const blob = await (await fetch(item.url)).blob();
+              const ext = item.format === "mp3" ? "mp3" : "wav";
+              ctx.acceptCloneFile(
+                new File([blob], `history-${item.id}.${ext}`, { type: blob.type || "audio/wav" }),
+              );
+            } catch (e) {
+              toast(`读取失败：${e.message}`, "err");
+            }
+          });
+          return b;
+        }),
+      );
+    } catch (e) {
+      setChildren(
+        body,
+        element("p", { className: "note err", textContent: `读取失败：${e.message}` }),
+      );
+    }
+  };
+
+  ctx.onLangChange = () => ctx.syncTagSheet?.();
+
+  /**
+   * Minimal text prompt, reusing the tag sheet container.
+   * Resolves with the trimmed value, or null if dismissed.
+   */
+  ctx.promptText = (title, initial = "") =>
+    new Promise((resolve) => {
+      const sheet = $("#tagSheet");
+      const body = $("#tagSheetBody");
+      const tabs = $("#tagSheetTabs");
+      $("#tagSheetTitle").textContent = title;
+
+      setChildren(tabs);
+      sheet.classList.add("is-open");
+      $("#mask").classList.add("is-open");
+      document.body.classList.add("is-locked");
+
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        ctx.closeTagSheet();
+        resolve(value);
+      };
+
+      const input = element("input", {
+        type: "text",
+        value: initial,
+        placeholder: "名称",
+        maxlength: "60",
+        "aria-label": title,
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(input.value.trim() || null);
+        }
+      });
+
+      const save = element("button", {
+        type: "button",
+        className: "btn primary",
+        textContent: "保存",
+      });
+      save.addEventListener("click", () => finish(input.value.trim() || null));
+
+      const cancel = element("button", { type: "button", className: "btn", textContent: "取消" });
+      cancel.addEventListener("click", () => finish(null));
+
+      const row = element("div", { className: "row wrap" });
+      row.append(save, cancel);
+
+      const wrap = element("div", { className: "prompt" });
+      wrap.append(input, row);
+      setChildren(body, wrap);
+      setTimeout(() => input.focus(), 40);
+    });
+
+  /* ═══════════════════════════════════════════════════ output behaviour ══ */
+
+  const NARROW = () => window.matchMedia("(max-width: 980px)").matches;
+
+  function openOutputOnNarrow() {
+    if (NARROW()) $("#output").classList.add("is-open");
+  }
+
+  $("#outputHead").addEventListener("click", () => {
+    if (NARROW()) $("#output").classList.toggle("is-open");
+  });
+
+  /* ═════════════════════════════════════════════════════════ keyboard ══ */
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      ctx.requestSynth();
+      return;
+    }
+    if (e.key === "Escape" && synth.running) {
+      e.preventDefault();
+      ctx.cancelSynth();
+      return;
+    }
+    for (const fn of keyHandlers) {
+      if (fn(e)) {
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
+  $("#kbdHint").textContent = /Mac|iPhone|iPad/.test(navigator.platform || "")
+    ? "⌘⏎"
+    : "Ctrl⏎";
+
+  /* ══════════════════════════════════════════════════════════ start up ══ */
+
+  const syncBadge = $("#syncBadge");
+  const syncText = $("#syncText");
+
+  persistence = createPersistence(store, {
+    onStatus(status) {
+      syncBadge.className = `badge${
+        status === "ok"
+          ? " is-ok"
+          : status === "pending"
+            ? " is-busy"
+            : status === "err"
+              ? " is-err"
+              : ""
+      }`;
+      syncText.textContent = SYNC_LABEL[status] || status;
+    },
+  });
+
+  const gate = createGate(ctx);
+
+  await persistence.restore();
+  refresh();
+
+  // Restored state may name a different model, whose panel has a different
+  // shape, so the tree is rebuilt once after hydration.
+  paintModelSeg();
+  paintDock();
+
+  gate.check();
+
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(paintModelSeg).observe(modelSeg);
+  } else {
+    window.addEventListener("resize", paintModelSeg);
+  }
+
+  // The thumb is measured from live layout, so re-measure once fonts settle.
+  setTimeout(paintModelSeg, 120);
+  void auth;
 }
-
-synthBtn.addEventListener("click", doSynthesize);
-
-function setStatus(msg, cls) {
-  const el = $("statusArea");
-  el.className = `status ${cls}`;
-  el.textContent = msg;
-}
-
-// ---------- 载入历史参数 ----------
-function loadParams(p) {
-  if (!p) return;
-  if (p.model && MODELS[p.model]) {
-    state.model = p.model;
-    renderModelTabs();
-    renderModelCard();
-  }
-  if (p.voice) {
-    state.voice = p.voice;
-  }
-  if (typeof p.style === "string") {
-    state.style = p.style;
-    $("styleInput").value = p.style;
-  }
-  if (typeof p.text === "string") {
-    state.text = p.text;
-    textInput.value = p.text;
-    updateCharCount();
-  }
-  if (p.voice && MODELS[p.model]?.presetVoices) {
-    const sel = $("voiceSelect");
-    if (sel) sel.value = p.voice;
-  }
-  renderChipsFromState();
-  scheduleSave(syncBadge);
-  setStatus("已载入历史参数，可重新编辑合成", "info");
-  $("paneOutput").classList.remove("open");
-}
-
-// ---------- 启动 ----------
-renderModelTabs();
-renderModelCard();
-renderChipsFromState();
-textInput.value = state.text;
-updateCharCount();
-$("styleInput").value = state.style;
-$("directorRole").value = state.director.role;
-$("directorScene").value = state.director.scene;
-$("directorGuide").value = state.director.guide;
-$("kbdHint").textContent = /Mac|iPhone|iPad/.test(navigator.platform)
-  ? "⌘⏎"
-  : "Ctrl⏎";
-initOutput(loadParams);
-initSettings();
-
-if ("ResizeObserver" in window) {
-  new ResizeObserver(positionThumb).observe(modelTabs);
-} else {
-  window.addEventListener("resize", positionThumb);
-}
-
-restoreConfig((status) => {
-  syncBadge(status);
-  if (status === "ok") {
-    // 服务端配置覆盖后刷新受控 DOM
-    textInput.value = state.text;
-    updateCharCount();
-    $("styleInput").value = state.style;
-    $("directorRole").value = state.director.role;
-    $("directorScene").value = state.director.scene;
-    $("directorGuide").value = state.director.guide;
-    renderModelTabs();
-    renderModelCard();
-    renderChipsFromState();
-    updateStreamNote();
-  }
-});
-
-// 令牌/服务端状态探测（/api/history 需要令牌，401 说明令牌缺失或错误）
-(async () => {
-  const res = await apiJson("/api/history?limit=1").catch(() => ({
-    ok: true,
-    status: 200,
-  }));
-  if (res.status === 401) {
-    setStatus("需要访问令牌：点击右上角设置填入 CONFIG_TOKEN", "err");
-  }
-})();

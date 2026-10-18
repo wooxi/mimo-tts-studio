@@ -1,28 +1,47 @@
 name = "mimo-tts-studio"
 main = "src/worker.js"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-10-01"
 
-# 静态资源（public/）由 Worker 托管
+# 静态资源（public/）由 Worker 托管，不需要构建步骤。
+# run_worker_first 是必需的：默认情况下 Cloudflare 会先尝试用静态资源直接
+# 应答，匹配到就不再进入 Worker，于是下面 worker.js 里的 CSP、nosniff、
+# X-Frame-Options 等安全响应头全都不会下发。
 [assets]
 directory = "./public"
 binding = "ASSETS"
+run_worker_first = true
 
-# 配置 + 历史记录元数据（同库：config 表 + history 表；v3.1 起弃用 KV）
+# 配置 + 历史元数据 + 用量（同一 D1 库）
 [[d1_databases]]
 binding = "HISTORY_DB"
 database_name = "mimo-tts-db"
 database_id = "94a2599e-4345-4ac3-8e67-9b80beb46662"
 
-# 历史音频文件
+# 历史音频
 [[r2_buckets]]
 binding = "AUDIO_BUCKET"
 bucket_name = "mimo-tts-audio"
 
 [vars]
+# 上游地址。官方 OpenAI 兼容端点：
+#   按量付费  https://api.xiaomimimo.com/v1/chat/completions
+#   Token Plan https://token-plan-cn.xiaomimimo.com/v1/chat/completions
 UPSTREAM_URL = "https://api.xiaomimimo.com/v1/chat/completions"
-# 历史记录最大保留条数（超出自动清理最旧的）
-HISTORY_LIMIT = "100"
 
-# 机密（wrangler secret put 设置）:
-#   MIMO_API_KEY — 上游 TTS 密钥（唯一来源，浏览器不接触）
-#   CONFIG_TOKEN — 访问令牌，所有 /api/* 请求需带 X-Config-Token
+# 历史保留条数（超出后自动清理最旧的元数据与音频）
+HISTORY_LIMIT = "200"
+
+# 单个音频对象的硬上限（字节）。VoiceClone 的 Base64 样本上游限 10MB。
+MAX_AUDIO_BYTES = "26214400"
+
+# 签名音频链接的有效期（秒）。<audio> 无法携带请求头，因此走短期签名 URL。
+AUDIO_URL_TTL = "1800"
+
+# 设为 "1" 时启用本地假上游（不发真实请求，返回合成的测试音）。
+# 仅用于开发与端到端自测，生产环境请保持未设置。
+# MIMO_MOCK = "1"
+
+# 机密（用 wrangler secret put 设置）：
+#   MIMO_API_KEY  — 小米 MiMo 开放平台密钥（必需）
+#   CONFIG_TOKEN  — 访问令牌。未设置时服务端会拒绝所有 /api/* 与 /audio/*，
+#                   以免把 API Key 变成一个对全网开放的免费代理。

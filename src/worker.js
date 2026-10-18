@@ -1,140 +1,166 @@
 /**
- * MiMo TTS Studio — Cloudflare Worker
+ * MiMo TTS Studio — Cloudflare Worker entry point.
  *
- * - 托管 public/ 静态资源（Workers Assets）
- * - D1 持久化 UI 配置（config 表，单行 upsert）：GET/PUT /api/config
- *   （v3.1 起弃用 KV：免费档 KV 每日写入仅 1,000 次，D1 为 100,000 行/天）
- * - TTS 代理：POST /api/tts（密钥只存在于 CF Secret MIMO_API_KEY，浏览器不接触）
- * - 历史记录：D1 元数据 + R2 音频（src/history.js）
+ * Static assets come from ./public with no build step. Everything under
+ * /api and /audio is routed here.
  *
- * 机密:
- *   MIMO_API_KEY — 上游 TTS 密钥（必需）
- *   CONFIG_TOKEN — 访问令牌，所有 /api/* 与 /audio/* 需携带 X-Config-Token
+ *   GET    /api/health            liveness + what is misconfigured
+ *   GET    /api/config            persisted UI state
+ *   PUT    /api/config
+ *   POST   /api/tts               synthesis proxy (streaming passthrough)
+ *   POST   /api/asr               speech recognition
+ *   GET    /api/history           take list, filters, signed playback URLs
+ *   POST   /api/history           multipart upload (audio + meta)
+ *   PATCH  /api/history/:id       { starred }
+ *   DELETE /api/history/:id
+ *   GET    /api/stats             usage rollup
+ *   GET    /api/voices            saved voice library
+ *   POST   /api/voices            JSON (designed) or multipart (cloned)
+ *   DELETE /api/voices/:id
+ *   GET    /audio/:id?exp&sig     R2 playback, signed, Range-capable
+ *   GET    /voice/:id?exp&sig     saved clone reference clip
+ *
+ * Secrets: MIMO_API_KEY (upstream), CONFIG_TOKEN (access; fail-closed).
+ * /audio and /voice are exempt from the shared guard because <audio> cannot
+ * send headers, so those routes authenticate themselves.
  */
 
-import { handleHistory, handleAudio } from "./history.js";
+import { CODES, corsHeaders, fail, json, notFound, toResponse } from "./lib/http.js";
+import { guard, hasToken } from "./lib/auth.js";
+import { ensureSchema, usageSummary } from "./lib/db.js";
+import { handleConfig } from "./routes/config.js";
+import { handleTts } from "./routes/tts.js";
+import { handleAsr } from "./routes/asr.js";
+import { handleHistory } from "./routes/history.js";
+import { handleAudio } from "./routes/audio.js";
+import { handleVoices, handleVoiceSample } from "./routes/voices.js";
 
-const CONFIG_KEY = "config:default";
-
-function json(data, cors, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...cors },
-  });
-}
-
-function checkToken(request, env, url) {
-  if (!env.CONFIG_TOKEN) return true; // 未设置令牌则不校验
-  // <audio> 标签无法携带 header，允许 query 参数 ?t=
-  const supplied =
-    request.headers.get("X-Config-Token") || url.searchParams.get("t") || "";
-  return supplied === env.CONFIG_TOKEN;
-}
+/** Headers applied to every HTML document we serve. */
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "img-src 'self' data:",
+    "media-src 'self' blob: data:",
+    "style-src 'self'",
+    "script-src 'self'",
+    // blob: is defensive rather than load-bearing: takes are decoded from
+    // their Blob directly, and history playback fetches a same-origin signed
+    // URL. It is kept so a future code path that reads an object URL back
+    // cannot be blocked silently.
+    "connect-src 'self' blob:",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join("; "),
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=()",
+};
 
 export default {
   async fetch(request, env, ctx) {
-    const cors = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-Config-Token",
-      "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
-    };
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const cors = corsHeaders(request, env);
 
-    if (request.method === "OPTIONS")
-      return new Response(null, { headers: cors });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
 
-    let url;
+    const isApi =
+      path.startsWith("/api/") ||
+      path.startsWith("/audio/") ||
+      path.startsWith("/voice/");
+    if (!isApi) return serveAsset(request, env);
+
     try {
-      url = new URL(request.url);
-    } catch {
-      return json({ error: "bad request" }, cors, 400);
-    }
-
-    // ---------- 配置持久化（D1 config 表） ----------
-    if (url.pathname === "/api/config") {
-      if (request.method === "GET") {
-        let cfg = {};
-        try {
-          const row = await env.HISTORY_DB.prepare(
-            "SELECT value FROM config WHERE key = ?",
-          )
-            .bind(CONFIG_KEY)
-            .first();
-          if (row?.value) cfg = JSON.parse(row.value);
-        } catch {
-          cfg = {}; // 表缺失或行损坏时按空配置处理
-        }
-        if (typeof cfg !== "object" || cfg === null || Array.isArray(cfg))
-          cfg = {};
-        return json(cfg, cors);
+      /* ------------------------------------------------------- health -- */
+      if (path === "/api/health") {
+        return json(
+          {
+            ok: true,
+            auth: hasToken(env) ? "token" : "unset",
+            upstream: Boolean(env.UPSTREAM_URL),
+            apiKey: Boolean(env.MIMO_API_KEY),
+            mock: env.MIMO_MOCK === "1",
+            historyLimit: Number(env.HISTORY_LIMIT || 200),
+            maxAudioBytes: Number(env.MAX_AUDIO_BYTES || 26214400),
+          },
+          200,
+          cors,
+        );
       }
-      if (request.method === "PUT") {
-        if (!checkToken(request, env, url))
-          return json({ error: "unauthorized" }, cors, 401);
-        let body;
-        try {
-          body = await request.json();
-        } catch {
-          return json({ error: "invalid json" }, cors, 400);
-        }
-        if (typeof body !== "object" || body === null || Array.isArray(body)) {
-          return json({ error: "invalid config" }, cors, 400);
-        }
-        delete body.apiKey;
-        for (const [k, v] of Object.entries(body)) {
-          if (typeof v === "string" && v.length > 100_000)
-            body[k] = v.slice(0, 100_000);
-        }
-        await env.HISTORY_DB.prepare(
-          `INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)
-           ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-        )
-          .bind(CONFIG_KEY, JSON.stringify(body), Date.now())
-          .run();
-        return json({ ok: true }, cors);
+
+      /* --------------------------------------------------------- auth -- */
+      const blocked = guard(request, env, path);
+      if (blocked) return blocked;
+
+      await ensureSchema(env.HISTORY_DB);
+
+      /* ------------------------------------------------------- routes -- */
+      if (path === "/api/config") {
+        return await handleConfig(request, env, ctx, cors);
       }
+
+      if (path === "/api/tts") {
+        if (request.method !== "POST") return methodNotAllowed(cors);
+        return await handleTts(request, env, ctx, cors);
+      }
+
+      if (path === "/api/asr") {
+        if (request.method !== "POST") return methodNotAllowed(cors);
+        return await handleAsr(request, env, ctx, cors);
+      }
+
+      if (path === "/api/stats") {
+        if (request.method !== "GET") return methodNotAllowed(cors);
+        const days = Math.min(Math.max(Number(url.searchParams.get("days")) || 30, 1), 365);
+        return json(await usageSummary(env.HISTORY_DB, days), 200, cors);
+      }
+
+      if (path === "/api/history" || path.startsWith("/api/history/")) {
+        const rest = path.slice("/api/history".length);
+        return await handleHistory(request, env, ctx, cors, url, rest);
+      }
+
+      if (path === "/api/voices" || path.startsWith("/api/voices/")) {
+        const rest = path.slice("/api/voices".length);
+        return await handleVoices(request, env, ctx, cors, url, rest);
+      }
+
+      if (path.startsWith("/audio/")) {
+        return await handleAudio(request, env, cors, url);
+      }
+
+      if (path.startsWith("/voice/")) {
+        return await handleVoiceSample(request, env, cors, url);
+      }
+
+      return notFound();
+    } catch (err) {
+      return toResponse(err, request, env);
     }
-
-    // ---------- TTS 代理（唯一合成通道，密钥仅存于 CF Secret） ----------
-    if (url.pathname === "/api/tts" && request.method === "POST") {
-      if (!checkToken(request, env, url))
-        return json({ error: "unauthorized" }, cors, 401);
-      const apiKey = env.MIMO_API_KEY || "";
-      if (!apiKey)
-        return json({ error: "服务端未配置 MIMO_API_KEY" }, cors, 503);
-
-      const upstream = await fetch(env.UPSTREAM_URL, {
-        method: "POST",
-        headers: { "api-key": apiKey, "Content-Type": "application/json" },
-        body: request.body, // 原样透传（支持流式响应）
-      });
-
-      return new Response(upstream.body, {
-        status: upstream.status,
-        headers: {
-          ...cors,
-          "Content-Type":
-            upstream.headers.get("Content-Type") || "application/json",
-        },
-      });
-    }
-
-    // ---------- 历史记录 ----------
-    if (
-      url.pathname === "/api/history" ||
-      url.pathname.startsWith("/api/history/")
-    ) {
-      if (!checkToken(request, env, url))
-        return json({ error: "unauthorized" }, cors, 401);
-      return handleHistory(request, env, cors, url, ctx);
-    }
-
-    if (url.pathname.startsWith("/audio/")) {
-      if (!checkToken(request, env, url))
-        return json({ error: "unauthorized" }, cors, 401);
-      return handleAudio(request, env, cors, url);
-    }
-
-    // ---------- 其余走静态资源 ----------
-    return env.ASSETS.fetch(request);
   },
 };
+
+function methodNotAllowed(cors) {
+  return fail(CODES.BAD_REQUEST, "method not allowed", 405, cors);
+}
+
+/**
+ * Static assets, plus hardening on the document itself. Anything the asset
+ * layer misses falls back to index.html so deep links keep working.
+ */
+async function serveAsset(request, env) {
+  const res = await env.ASSETS.fetch(request);
+  const type = res.headers.get("Content-Type") || "";
+
+  if (!type.includes("text/html")) return res;
+
+  const headers = new Headers(res.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  return new Response(res.body, { status: res.status, headers });
+}
