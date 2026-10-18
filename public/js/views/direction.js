@@ -143,12 +143,20 @@ function render(root, ctx, setSoft = () => {}) {
   // 900px-tall window. So it starts closed, and the summary reports whether
   // anything is filled in. The layer header above stays visible either way, so
   // the three-layer structure is still legible.
-  const filled = [
-    s.style.trim(),
-    s.director.role.trim(),
-    s.director.scene.trim(),
-    s.director.guide.trim(),
-  ].filter(Boolean).length;
+  const hint = h("span", { class: "hint" });
+  const paintFoldHint = () => {
+    const st = ctx.store.get();
+    const n = [
+      st.style.trim(),
+      st.director.role.trim(),
+      st.director.scene.trim(),
+      st.director.guide.trim(),
+    ].filter(Boolean).length;
+    hint.className = `hint${n ? " is-on" : ""}`;
+    hint.textContent = n ? `已填 ${n} 项` : "可选";
+  };
+  paintFoldHint();
+  setSoft(paintFoldHint);
 
   setChildren(
     root,
@@ -161,10 +169,7 @@ function render(root, ctx, setSoft = () => {}) {
         h("span", { html: ic("chevron") }),
         h("span", { text: "风格描述与导演模式" }),
         h("span", { class: "spacer" }),
-        h("span", {
-          class: `hint${filled ? " is-on" : ""}`,
-          text: filled ? `已填 ${filled} 项` : "可选",
-        }),
+        hint,
       ),
       h("div", { class: "fold-body" }, ...parts),
     ),

@@ -20,24 +20,30 @@ let auditioning = null;
 
 export function initVoice(ctx) {
   const root = $("#voicePanel");
-  const rerender = () => render(root, ctx);
+  /** Rebound on every render so soft updates touch live elements. */
+  let soft = () => {};
+  const rerender = () => render(root, ctx, (fn) => (soft = fn));
   ctx.onRefresh.push(rerender);
+  ctx.onSoftRefresh.push(() => soft());
   rerender();
   return rerender;
 }
 
-function render(root, ctx) {
+function render(root, ctx, setSoft = () => {}) {
+  // Panels without soft state rebind to a no-op so a stale closure can never
+  // touch a detached tree.
+  setSoft(() => {});
   const s = ctx.store.get();
   const model = modelOf(s.model);
 
-  if (model.caps.presetVoices) return renderPresets(root, ctx);
+  if (model.caps.presetVoices) return renderPresets(root, ctx, setSoft);
   if (model.caps.voiceDesign) return renderDesign(root, ctx);
   return renderClone(root, ctx);
 }
 
 /* --------------------------------------------------------------- presets -- */
 
-function renderPresets(root, ctx) {
+function renderPresets(root, ctx, setSoft = () => {}) {
   const s = ctx.store.get();
 
   // A radiogroup rather than a row of buttons: the audition control is a real
@@ -92,6 +98,18 @@ function renderPresets(root, ctx) {
     );
     grid.append(card);
   }
+
+  // Selecting a card only runs the soft refresh path, so the highlight has to
+  // be repainted here — otherwise the click looks inert even though the store
+  // already holds the new voice.
+  setSoft(() => {
+    const current = ctx.store.get().voice;
+    for (const card of grid.querySelectorAll(".voice-card")) {
+      const on = card.dataset.voice === current;
+      card.setAttribute("aria-checked", String(on));
+      card.tabIndex = on ? 0 : -1;
+    }
+  });
 
   setChildren(root, grid);
 }
