@@ -151,11 +151,21 @@ const MIME = {
   ".webmanifest": "application/manifest+json",
 };
 
+/**
+ * Files the asset layer consumes as configuration and never serves.
+ * Cloudflare excludes these from Workers Assets; the shim has to match,
+ * otherwise a local run would report them as downloadable.
+ */
+const CONFIG_ONLY = new Set(["_headers", "_redirects", "_routes.json"]);
+
 const ASSETS = {
   async fetch(request) {
     const url = new URL(request.url);
     let rel = decodeURIComponent(url.pathname);
     if (rel.endsWith("/")) rel += "index.html";
+
+    const name = rel.split("/").pop();
+    if (CONFIG_ONLY.has(name)) return new Response("not found", { status: 404 });
 
     // Contain the lookup inside ./public — no traversal.
     const full = normalize(join(PUBLIC, rel));

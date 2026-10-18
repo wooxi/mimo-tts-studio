@@ -3,12 +3,17 @@ main = "src/worker.js"
 compatibility_date = "2025-10-01"
 
 # 静态资源（public/）由 Worker 托管，不需要构建步骤。
-# run_worker_first 是必需的：默认情况下 Cloudflare 会先尝试用静态资源直接
-# 应答，匹配到就不再进入 Worker，于是下面 worker.js 里的 CSP、nosniff、
-# X-Frame-Options 等安全响应头全都不会下发。
+#
+# 安全响应头有两条下发路径，缺一不可：
+#   1. public/_headers —— 由资源层自己应用。生产环境里 public/ 实际是由资源层
+#      应答的，而且可能直接命中 Cloudflare 边缘缓存、根本不会调用 Worker；
+#      只靠 Worker 会出现在线没有 CSP 的情况。
+#   2. worker.js 的 serveAsset —— Worker 处理文档请求时再补一遍。
+# 两处保持同一套规则，任何一条路径失效都能被发现。
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# 让 Worker 先处理每个请求：这样 /api/* 永远不会被同名静态资源抢走路由。
 run_worker_first = true
 
 # 配置 + 历史元数据 + 用量（同一 D1 库）

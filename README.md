@@ -67,7 +67,7 @@
 | 用量统计 | 每次**到达上游**的调用落一行 `usage`（被本地校验拦下的请求不落行），设置抽屉展示近 30 天调用数、字数、音频总量、平均耗时与按模型分布 |
 | 深浅色 | auto / light / dark 三态，首屏前应用，`auto` 跟随系统 |
 | 键盘可达性 | 跳到主内容链接、统一的 `focus-visible` 描边、开关与分段控件均可用键盘操作 |
-| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'` |
+| 安全响应头 | CSP 默认仅允许同源（图片与媒体额外允许 `data:` / `blob:`），另有 `no-referrer`、`nosniff`、`frame-ancestors 'none'`。同一套规则写在 `public/_headers`（资源层应用）和 Worker 里（文档请求时再补一遍）——生产环境里静态资源可能直接命中边缘缓存、根本不经过 Worker，只写一处会漏 |
 | fail-closed | 未设置 `CONFIG_TOKEN` 时拒绝所有 API 请求，避免部署变成对全网开放的免费代理 |
 | 本地假上游 | `npm run dev:mock` 返回真实结构的 WAV / SSE，不发请求、不消耗额度 |
 
@@ -190,6 +190,7 @@ node scripts/check-failclosed.mjs       # 未设 CONFIG_TOKEN 时的拒绝行为
 ```
 wrangler.toml          Worker 名称、静态资源绑定、D1 / R2 绑定、vars
 src/worker.js          入口：路由、静态资源托管、文档安全响应头
+public/_headers        静态资源的安全响应头（资源层应用，不经 Worker 也生效）
 src/routes/            tts（合成代理）/ asr / config / history / audio / voices（音色库）
 src/lib/               auth（令牌与签名）/ db（建表与用量）/ upstream（重试与错误翻译）/ http / mock
 src/db/schema.sql      D1 权威结构，幂等，可重复执行

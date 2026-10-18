@@ -361,6 +361,24 @@ section("static assets & security headers");
   check("no inline style= attribute", !/\sstyle="/i.test(html));
   check("no inline event handler", !/\son[a-z]+="/i.test(html));
 
+  // In production the asset layer answers public/ and may hit Cloudflare's edge
+  // cache without ever invoking the Worker, so the same rules have to be
+  // declared in public/_headers as well. Keep the two in step.
+  const { readFile } = await import("node:fs/promises");
+  const declared = await readFile(new URL("../public/_headers", import.meta.url), "utf8").catch(() => "");
+  check("public/_headers exists", declared.includes("/*"));
+  for (const [name, needle] of [
+    ["CSP", "Content-Security-Policy:"],
+    ["frame-ancestors", "frame-ancestors 'none'"],
+    ["connect-src blob:", "connect-src 'self' blob:"],
+    ["nosecniff", "X-Content-Type-Options: nosniff"],
+    ["referrer", "Referrer-Policy: no-referrer"],
+  ]) {
+    check(`_headers declares ${name}`, declared.includes(needle));
+  }
+  const headersAsAsset = await fetch(`${BASE}/_headers`);
+  check("_headers is not served as an asset", headersAsAsset.status === 404, `status ${headersAsAsset.status}`);
+
   const css = await fetch(`${BASE}/css/tokens.css`);
   check("css served with the right type", (css.headers.get("content-type") || "").includes("text/css"), css.headers.get("content-type"));
   await css.text();

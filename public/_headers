@@ -1,0 +1,30 @@
+# Response headers for the static assets in this directory.
+#
+# These are applied by the asset layer itself, which is what actually serves
+# public/ in production. That matters: the Worker also sets these on HTML
+# documents, but asset responses can be served from Cloudflare's edge cache
+# without the Worker being invoked at all — so relying on the Worker alone left
+# the deployed site without a CSP. The same rules are kept in both places so
+# neither path can regress silently.
+#
+# `_headers` is consumed by the asset layer and is not served to clients.
+# Syntax is the same as Cloudflare Pages:
+#   <url pattern>
+#     <Header-Name>: <value>
+
+/*
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; media-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self' blob:; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+
+# The brand SVGs are safe to cache hard; they only change with a deploy.
+/brand/*
+  Cache-Control: public, max-age=3600
+
+/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/js/*
+  Cache-Control: public, max-age=0, must-revalidate
